@@ -164,6 +164,13 @@ function verifyShopifyWebhookHmac(req) {
   }
 }
 
+function ensureWebhookSignature(req) {
+  const webhookIsValid = verifyShopifyWebhookHmac(req)
+  if (!webhookIsValid && !ALLOW_DEV_WEBHOOK_WITHOUT_HMAC) {
+    throw new Error('Invalid Shopify webhook HMAC')
+  }
+}
+
 async function writeSyncLog({ shopId = null, shopifyOrderId = null, eventType, status, message, payload }) {
   const db = await getDb()
   await db.run(
@@ -1248,23 +1255,37 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
 })
 
 app.post('/api/webhooks/shopify/refunds-create', async (req, res) => {
-  const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shopDomain || '').toLowerCase().trim()
-  const shop = shopDomain ? await getShopByDomain(shopDomain) : null
+  try {
+    ensureWebhookSignature(req)
 
-  await writeSyncLog({
-    shopId: shop?.id || null,
-    shopifyOrderId: String(req.body?.order_id || req.body?.orderId || 'unknown'),
-    eventType: 'refunds/create',
-    status: 'queued',
-    message: 'Refund sync queued for next phase',
-    payload: req.body,
-  })
+    const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shopDomain || '').toLowerCase().trim()
+    const shop = shopDomain ? await getShopByDomain(shopDomain) : null
 
-  res.status(202).json({ success: true, message: 'Refund sync queued' })
+    await writeSyncLog({
+      shopId: shop?.id || null,
+      shopifyOrderId: String(req.body?.order_id || req.body?.orderId || 'unknown'),
+      eventType: 'refunds/create',
+      status: 'queued',
+      message: 'Refund sync queued for next phase',
+      payload: req.body,
+    })
+
+    return res.status(202).json({ success: true, message: 'Refund sync queued' })
+  } catch (error) {
+    await writeSyncLog({
+      eventType: 'refunds/create',
+      status: 'failed',
+      message: error.message,
+      payload: req.body,
+    })
+    return res.status(401).json({ error: error.message })
+  }
 })
 
 app.post('/api/webhooks/shopify/app-uninstalled', async (req, res) => {
   try {
+    ensureWebhookSignature(req)
+
     const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shop_domain || '').toLowerCase().trim()
     await markShopUninstalled(shopDomain)
     const shop = await getShopByDomain(shopDomain)
@@ -1286,6 +1307,90 @@ app.post('/api/webhooks/shopify/app-uninstalled', async (req, res) => {
       payload: req.body,
     })
     return res.status(500).json({ error: error.message })
+  }
+})
+
+app.post('/api/webhooks/shopify/customers-data-request', async (req, res) => {
+  try {
+    ensureWebhookSignature(req)
+
+    const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shop_domain || '').toLowerCase().trim()
+    const shop = shopDomain ? await getShopByDomain(shopDomain) : null
+
+    await writeSyncLog({
+      shopId: shop?.id || null,
+      shopifyOrderId: null,
+      eventType: 'customers/data_request',
+      status: 'received',
+      message: 'Shopify compliance webhook received: customers/data_request',
+      payload: req.body,
+    })
+
+    return res.status(200).json({ success: true })
+  } catch (error) {
+    await writeSyncLog({
+      eventType: 'customers/data_request',
+      status: 'failed',
+      message: error.message,
+      payload: req.body,
+    })
+    return res.status(401).json({ error: error.message })
+  }
+})
+
+app.post('/api/webhooks/shopify/customers-redact', async (req, res) => {
+  try {
+    ensureWebhookSignature(req)
+
+    const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shop_domain || '').toLowerCase().trim()
+    const shop = shopDomain ? await getShopByDomain(shopDomain) : null
+
+    await writeSyncLog({
+      shopId: shop?.id || null,
+      shopifyOrderId: null,
+      eventType: 'customers/redact',
+      status: 'received',
+      message: 'Shopify compliance webhook received: customers/redact',
+      payload: req.body,
+    })
+
+    return res.status(200).json({ success: true })
+  } catch (error) {
+    await writeSyncLog({
+      eventType: 'customers/redact',
+      status: 'failed',
+      message: error.message,
+      payload: req.body,
+    })
+    return res.status(401).json({ error: error.message })
+  }
+})
+
+app.post('/api/webhooks/shopify/shop-redact', async (req, res) => {
+  try {
+    ensureWebhookSignature(req)
+
+    const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shop_domain || '').toLowerCase().trim()
+    const shop = shopDomain ? await getShopByDomain(shopDomain) : null
+
+    await writeSyncLog({
+      shopId: shop?.id || null,
+      shopifyOrderId: null,
+      eventType: 'shop/redact',
+      status: 'received',
+      message: 'Shopify compliance webhook received: shop/redact',
+      payload: req.body,
+    })
+
+    return res.status(200).json({ success: true })
+  } catch (error) {
+    await writeSyncLog({
+      eventType: 'shop/redact',
+      status: 'failed',
+      message: error.message,
+      payload: req.body,
+    })
+    return res.status(401).json({ error: error.message })
   }
 })
 
