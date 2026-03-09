@@ -3,6 +3,7 @@ import './App.css';
 
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
+  const [settingsTab, setSettingsTab] = useState('general');
   const [showUpgradePanel, setShowUpgradePanel] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState('');
   const [upgradeMessage, setUpgradeMessage] = useState('');
@@ -547,77 +548,180 @@ function App() {
 
           {activePage === 'settings' ? (
             <>
-              <section className="section-card">
-                <h3 className="section-title">Plan Information</h3>
-                <div className="settings-list">
-                  <div><strong>Plan:</strong> {planData.plan.name}</div>
-                  <div><strong>Monthly usage:</strong> {usedOrdersThisMonth}{monthlyLimit == null ? ' / unlimited' : ` / ${monthlyLimit}`}</div>
-                  <div><strong>Multi-store:</strong> {planData.plan.supportsMultiStore ? 'Enabled' : 'Starter limitation (1 store)'}</div>
-                </div>
-              </section>
-
-              <section className="section-card">
-                <h3 className="section-title">Shopify Connection</h3>
-                <div className="settings-form">
-                  <div className="form-group">
-                    <label htmlFor="shopifyDomain">Shop Domain</label>
-                    <input
-                      id="shopifyDomain"
-                      type="text"
-                      className="form-input"
-                      placeholder="your-store.myshopify.com"
-                      value={settings.shopifyDomain}
-                      onChange={(e) => setSettings({ ...settings, shopifyDomain: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="shopifyApiKey">API Access Token</label>
-                    <input
-                      id="shopifyApiKey"
-                      type="password"
-                      className="form-input"
-                      placeholder="shpat_xxxxx"
-                      value={settings.shopifyApiKey}
-                      onChange={(e) => setSettings({ ...settings, shopifyApiKey: e.target.value })}
-                    />
-                  </div>
-                  <p className="form-hint">💡 Get your API credentials from Shopify Admin → Settings → Apps and sales channels → Develop apps</p>
-                </div>
-              </section>
-
-              <section className="section-card">
-                <h3 className="section-title">QuickBooks Connection</h3>
-                <div className="settings-form">
-                  <p className="form-hint">Connect your QuickBooks Online account to sync invoices.</p>
-                  <button 
-                    className="btn-oauth"
-                    onClick={() => window.location.href = 'http://localhost:4000/api/auth/qbo/start'}
+              <section className="section-card settings-tabs-card">
+                <div className="settings-tabs">
+                  <button
+                    className={`settings-tab ${settingsTab === 'general' ? 'active' : ''}`}
+                    onClick={() => setSettingsTab('general')}
                   >
-                    {settings.qboConnected ? '✓ Connected to QuickBooks' : '🔗 Connect QuickBooks Online'}
+                    General
+                  </button>
+                  <button
+                    className={`settings-tab ${settingsTab === 'eula' ? 'active' : ''}`}
+                    onClick={() => setSettingsTab('eula')}
+                  >
+                    License & EULA
+                  </button>
+                  <button
+                    className={`settings-tab ${settingsTab === 'privacy' ? 'active' : ''}`}
+                    onClick={() => setSettingsTab('privacy')}
+                  >
+                    Privacy Policy
                   </button>
                 </div>
               </section>
 
-              <section className="section-card">
-                <h3 className="section-title">Sync Options</h3>
-                <div className="settings-form">
-                  <div className="form-checkbox">
-                    <input
-                      id="autoDecrement"
-                      type="checkbox"
-                      checked={settings.autoDecrementInventory}
-                      onChange={(e) => setSettings({ ...settings, autoDecrementInventory: e.target.checked })}
-                    />
-                    <label htmlFor="autoDecrement">Automatically decrement inventory in QuickBooks when order is synced</label>
-                  </div>
-                  <p className="form-hint">⚠️ When enabled, product quantities will be reduced in QuickBooks inventory after each successful sync.</p>
-                </div>
-              </section>
+              {settingsTab === 'general' ? (
+                <>
+                  <section className="section-card">
+                    <h3 className="section-title">Plan Information</h3>
+                    <div className="settings-list">
+                      <div><strong>Plan:</strong> {planData.plan.name}</div>
+                      <div><strong>Monthly usage:</strong> {usedOrdersThisMonth}{monthlyLimit == null ? ' / unlimited' : ` / ${monthlyLimit}`}</div>
+                      <div><strong>Multi-store:</strong> {planData.plan.supportsMultiStore ? 'Enabled' : 'Starter limitation (1 store)'}</div>
+                    </div>
+                  </section>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button className="btn-secondary-dark" onClick={loadSettings}>Reset</button>
-                <button className="btn-primary" onClick={saveSettings}>Save Settings</button>
-              </div>
+                  <section className="section-card">
+                    <h3 className="section-title">Shopify Connection</h3>
+                    <div className="settings-form">
+                      <div className="form-group">
+                        <label htmlFor="shopifyDomain">Shop Domain</label>
+                        <input
+                          id="shopifyDomain"
+                          type="text"
+                          className="form-input"
+                          placeholder="your-store.myshopify.com"
+                          value={settings.shopifyDomain}
+                          onChange={(e) => setSettings({ ...settings, shopifyDomain: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="shopifyApiKey">API Access Token</label>
+                        <input
+                          id="shopifyApiKey"
+                          type="password"
+                          className="form-input"
+                          placeholder="shpat_xxxxx"
+                          value={settings.shopifyApiKey}
+                          onChange={(e) => setSettings({ ...settings, shopifyApiKey: e.target.value })}
+                        />
+                      </div>
+                      <p className="form-hint">💡 Get your API credentials from Shopify Admin → Settings → Apps and sales channels → Develop apps</p>
+                    </div>
+                  </section>
+
+                  <section className="section-card">
+                    <h3 className="section-title">QuickBooks Connection</h3>
+                    <div className="settings-form">
+                      <p className="form-hint">Connect your QuickBooks Online account to sync invoices.</p>
+                      <button
+                        className="btn-oauth"
+                        onClick={() => window.location.href = 'http://localhost:4000/api/auth/qbo/start'}
+                      >
+                        {settings.qboConnected ? '✓ Connected to QuickBooks' : '🔗 Connect QuickBooks Online'}
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="section-card">
+                    <h3 className="section-title">Sync Options</h3>
+                    <div className="settings-form">
+                      <div className="form-checkbox">
+                        <input
+                          id="autoDecrement"
+                          type="checkbox"
+                          checked={settings.autoDecrementInventory}
+                          onChange={(e) => setSettings({ ...settings, autoDecrementInventory: e.target.checked })}
+                        />
+                        <label htmlFor="autoDecrement">Automatically decrement inventory in QuickBooks when order is synced</label>
+                      </div>
+                      <p className="form-hint">⚠️ When enabled, product quantities will be reduced in QuickBooks inventory after each successful sync.</p>
+                    </div>
+                  </section>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                    <button className="btn-secondary-dark" onClick={loadSettings}>Reset</button>
+                    <button className="btn-primary" onClick={saveSettings}>Save Settings</button>
+                  </div>
+                </>
+              ) : null}
+
+              {settingsTab === 'eula' ? (
+                <section className="section-card">
+                  <h3 className="section-title">License & EULA</h3>
+                  <div className="legal-content">
+                    <p><strong>Last Updated:</strong> March 9, 2026</p>
+                    <p>This End User License Agreement ("Agreement") governs use of Order2Books ("App") provided by Order2Books ("Company", "we", "our", or "us"). By installing or using the App, you agree to this Agreement.</p>
+
+                    <h4>1. License</h4>
+                    <p>We grant you a limited, non-exclusive, non-transferable, revocable license to use the App solely to synchronize order and invoice data between Shopify and QuickBooks Online.</p>
+                    <p>You may not reverse engineer, modify, redistribute, or use the App in violation of applicable laws.</p>
+
+                    <h4>2. Third-Party Services</h4>
+                    <p>The App integrates with Shopify and QuickBooks Online. Your use of those services is governed by their own terms and policies. We are not responsible for third-party service availability or operation.</p>
+
+                    <h4>3. Data Synchronization</h4>
+                    <p>Synchronization may not occur instantly. Network delays, API limitations, and service interruptions may affect sync timing.</p>
+
+                    <h4>4. QuickBooks Changes and Timing</h4>
+                    <p>Changes made directly within QuickBooks Online may not immediately appear in the App and may take up to 24 hours to reflect.</p>
+                    <p>The Company is not responsible for discrepancies, delays, or differences in data visibility during this synchronization window.</p>
+
+                    <h4>5. Disclaimer of Warranties</h4>
+                    <p>The App is provided "as is" without warranties of any kind. We do not guarantee uninterrupted operation, immediate synchronization, or perfect data matching across systems at all times.</p>
+
+                    <h4>6. Limitation of Liability</h4>
+                    <p>To the maximum extent permitted by law, the Company shall not be liable for financial discrepancies, data delays, accounting errors, or indirect and consequential damages arising from use of the App.</p>
+
+                    <h4>7. Termination</h4>
+                    <p>We may suspend or terminate access if this Agreement is violated, the App is misused, or required integrations are disconnected.</p>
+
+                    <h4>8. Changes to Agreement</h4>
+                    <p>We may update this Agreement at any time. Continued use of the App means you accept the updated terms.</p>
+
+                    <h4>9. Contact</h4>
+                    <p>Order2Books<br />kadie@olympic-equipment.com</p>
+                  </div>
+                </section>
+              ) : null}
+
+              {settingsTab === 'privacy' ? (
+                <section className="section-card">
+                  <h3 className="section-title">Privacy Policy</h3>
+                  <div className="legal-content">
+                    <p><strong>Last Updated:</strong> March 9, 2026</p>
+                    <p>Order2Books ("we", "our", "us") respects your privacy. This Policy explains how information is collected and used when you install and use the App.</p>
+
+                    <h4>1. Information We Collect</h4>
+                    <p>We collect only information necessary to operate synchronization services, including Shopify store domain, required Shopify order data, required QuickBooks customer/invoice data, and app configuration settings.</p>
+
+                    <h4>2. How We Use Information</h4>
+                    <p>Collected data is used only to synchronize Shopify and QuickBooks data, maintain integration connections, and provide technical support.</p>
+
+                    <h4>3. Data Storage</h4>
+                    <p>Data may be temporarily stored to process synchronization tasks. We do not sell or rent merchant data.</p>
+
+                    <h4>4. Third-Party Services</h4>
+                    <p>The App integrates with Shopify and QuickBooks Online, which operate under their own privacy policies.</p>
+
+                    <h4>5. Data Security</h4>
+                    <p>We implement reasonable security measures to protect data used by the App; however, no transmission or storage system can be guaranteed 100% secure.</p>
+
+                    <h4>6. Data Retention</h4>
+                    <p>We retain data only as long as necessary to provide synchronization services and comply with legal obligations.</p>
+
+                    <h4>7. User Responsibilities</h4>
+                    <p>Users remain responsible for reviewing accounting records in QuickBooks and Shopify. Changes made directly in QuickBooks may take up to 24 hours to appear in the App.</p>
+
+                    <h4>8. Changes to This Policy</h4>
+                    <p>We may update this Policy periodically. Updates are posted with a revised "Last Updated" date.</p>
+
+                    <h4>9. Contact</h4>
+                    <p>Order2Books<br />kadie@olympic-equipment.com</p>
+                  </div>
+                </section>
+              ) : null}
             </>
           ) : null}
 
