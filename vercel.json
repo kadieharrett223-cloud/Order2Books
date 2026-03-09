@@ -5,7 +5,8 @@
   "public": true,
   "functions": {
     "api/**/*.js": {
-      "runtime": "nodejs@18.x"
+      "runtime": "nodejs@18.x",
+      "includeFiles": "migrations/**"
     }
   },
   "headers": [

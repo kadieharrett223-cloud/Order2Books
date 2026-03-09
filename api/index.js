@@ -1,11 +1,22 @@
 // Serverless function handler for Vercel
 // Vercel will call this for all requests to /api/*
-const app = require('../server');
-
 // Initialize migrations on first request
 let migrationsInitialized = false;
+let appInstance = null;
 
 const handler = async (req, res) => {
+  if (!appInstance) {
+    try {
+      appInstance = require('../server');
+    } catch (error) {
+      console.error('Server bootstrap error:', error);
+      return res.status(500).json({
+        error: 'Server bootstrap failed',
+        detail: process.env.NODE_ENV === 'production' ? undefined : String(error?.stack || error?.message || error),
+      });
+    }
+  }
+
   if (!migrationsInitialized) {
     try {
       const { migrate } = require('../db');
@@ -21,7 +32,7 @@ const handler = async (req, res) => {
   }
 
   // Call the Express app
-  return app(req, res);
+  return appInstance(req, res);
 };
 
 module.exports = handler;
