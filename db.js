@@ -5,10 +5,17 @@ const { open } = require('sqlite')
 
 let dbPromise
 
+function getDatabaseFilePath() {
+  if (process.env.VERCEL) {
+    return '/tmp/order2books.sqlite'
+  }
+  return path.join(__dirname, 'data.sqlite')
+}
+
 async function getDb() {
   if (!dbPromise) {
     dbPromise = open({
-      filename: path.join(__dirname, 'data.sqlite'),
+      filename: getDatabaseFilePath(),
       driver: sqlite3.Database,
     })
   }

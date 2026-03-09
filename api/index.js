@@ -13,6 +13,10 @@ const handler = async (req, res) => {
       migrationsInitialized = true;
     } catch (error) {
       console.error('Migration error:', error);
+      return res.status(500).json({
+        error: 'Server initialization failed',
+        detail: process.env.NODE_ENV === 'production' ? undefined : String(error?.message || error),
+      });
     }
   }
 
