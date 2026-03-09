@@ -83,7 +83,7 @@ function getSessionTokenFromRequest(req) {
 
 function verifyShopifySession(req, res, next) {
   const path = req.path || ''
-  if (path.startsWith('/webhooks/') || path.startsWith('/auth/') || path === '/health') {
+  if (path.startsWith('/webhooks/') || path.includes('/webhooks/') || path.startsWith('/auth/') || path === '/health') {
     return next()
   }
 
