@@ -33,11 +33,24 @@
       "dest": "/api/index.js"
     },
     {
-      "handle": "filesystem"
+      "src": "/assets/(.*)",
+      "dest": "/frontend/assets/$1"
+    },
+    {
+      "src": "/eula.html",
+      "dest": "/frontend/eula.html"
+    },
+    {
+      "src": "/privacy-policy.html",
+      "dest": "/frontend/privacy-policy.html"
+    },
+    {
+      "src": "/vite.svg",
+      "dest": "/frontend/vite.svg"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/frontend/index.html"
     }
   ],
   "env": {
