@@ -1,17 +1,19 @@
 {
   "name": "order2books",
   "version": "1.0.0",
-  "description": "",
+  "description": "Order2Books - Shopify to QuickBooks sync",
   "main": "server.js",
   "scripts": {
     "dev:backend": "node server.js",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev": "npm run dev:backend",
+    "build": "npm --prefix frontend run build",
+    "start": "node server.js",
     "test": "echo \"No tests yet\""
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["shopify", "quickbooks", "saas", "sync"],
+  "author": "Kadie Harrett",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "cors": "^2.8.6",

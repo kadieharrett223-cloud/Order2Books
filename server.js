@@ -7,7 +7,16 @@ require('dotenv').config()
 const app = express()
 const port = Number(process.env.PORT || 4000)
 
-const APP_URL = process.env.APP_URL || `http://localhost:${port}`
+// APP_URL - use from env, fallback to localhost for dev, or infer from Vercel
+let APP_URL = process.env.APP_URL
+if (!APP_URL) {
+  if (process.env.VERCEL_URL) {
+    APP_URL = `https://${process.env.VERCEL_URL}`
+  } else {
+    APP_URL = `http://localhost:${port}`
+  }
+}
+
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY || ''
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET || ''
 const SHOPIFY_SCOPES = process.env.SHOPIFY_SCOPES || 'read_orders'
@@ -1336,7 +1345,13 @@ async function start() {
   })
 }
 
-start().catch((error) => {
-  console.error('Failed to start server', error)
-  process.exit(1)
-})
+// Export app for serverless (Vercel)
+module.exports = app
+
+// Only start listening if running locally (not on Vercel)
+if (!process.env.VERCEL) {
+  start().catch((error) => {
+    console.error('Failed to start server', error)
+    process.exit(1)
+  })
+}
