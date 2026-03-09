@@ -5,7 +5,7 @@
   "public": true,
   "functions": {
     "api/**/*.js": {
-      "runtime": "nodejs18.x"
+      "runtime": "nodejs@18.x"
     }
   },
   "headers": [
