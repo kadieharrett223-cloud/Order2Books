@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+.DS_Store
+.cache/
+data.sqlite
+data.sqlite-wal
+data.sqlite-shm
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.eslintcache
