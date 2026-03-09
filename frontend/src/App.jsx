@@ -1,6 +1,32 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 
+async function getShopifySessionToken() {
+  try {
+    if (typeof window !== 'undefined' && window.shopify && typeof window.shopify.idToken === 'function') {
+      return await window.shopify.idToken();
+    }
+  } catch {
+  }
+
+  return null;
+}
+
+async function apiFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+
+  const sessionToken = await getShopifySessionToken();
+  if (sessionToken) {
+    headers.set('Authorization', `Bearer ${sessionToken}`);
+    headers.set('X-Shopify-Session-Token', sessionToken);
+  }
+
+  return fetch(url, {
+    ...options,
+    headers,
+  });
+}
+
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('general');
@@ -64,7 +90,7 @@ function App() {
   useEffect(() => {
     const loadPlan = async () => {
       try {
-        const response = await fetch('/api/plan');
+        const response = await apiFetch('/api/plan');
         if (!response.ok) return;
         const data = await response.json();
         setPlanData(data);
@@ -76,7 +102,7 @@ function App() {
   }, []);
 
   const refreshPlan = async () => {
-    const response = await fetch('/api/plan');
+    const response = await apiFetch('/api/plan');
     if (!response.ok) return;
     const data = await response.json();
     setPlanData(data);
@@ -85,7 +111,7 @@ function App() {
   const loadLogs = async () => {
     setLogsLoading(true);
     try {
-      const response = await fetch('/api/logs');
+      const response = await apiFetch('/api/logs');
       if (!response.ok) return;
       const data = await response.json();
       setLogs(Array.isArray(data.logs) ? data.logs : []);
@@ -115,7 +141,7 @@ function App() {
       return;
     }
     try {
-      const response = await fetch(`/api/syncs/${encodeURIComponent(searchQuery.trim())}`);
+      const response = await apiFetch(`/api/syncs/${encodeURIComponent(searchQuery.trim())}`);
       if (!response.ok) {
         setSearchResult({ error: 'Order not found' });
         return;
@@ -129,7 +155,7 @@ function App() {
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('/api/settings');
+      const response = await apiFetch('/api/settings');
       if (!response.ok) return;
       const data = await response.json();
       setSettings(data.settings || settings);
@@ -139,7 +165,7 @@ function App() {
 
   const saveSettings = async () => {
     try {
-      const response = await fetch('/api/settings', {
+      const response = await apiFetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
@@ -160,7 +186,7 @@ function App() {
     setUpgradeMessage('');
     setUpgradeBusy(planKey);
     try {
-      const response = await fetch('/api/plan/upgrade', {
+      const response = await apiFetch('/api/plan/upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planKey }),
@@ -189,7 +215,7 @@ function App() {
       {/* Top Header */}
       <header className="top-header">
         <div className="header-left">
-          <div className="logo-icon">📘</div>
+          <img className="logo-image" src="/order2books-logo.svg" alt="Order2Books logo" />
           <h1 className="app-title">OrderBooks <span className="title-light">Dashboard</span></h1>
         </div>
         <div className="header-actions">

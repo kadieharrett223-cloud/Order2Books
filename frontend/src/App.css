@@ -45,8 +45,11 @@
   gap: 12px;
 }
 
-.logo-icon {
-  font-size: 24px;
+.logo-image {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 8px;
 }
 
 .app-title {

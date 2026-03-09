@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const crypto = require('crypto')
+const jwt = require('jsonwebtoken')
 const { migrate, getDb } = require('./db')
 require('dotenv').config()
 
@@ -29,6 +30,7 @@ const QBO_ENV = process.env.QBO_ENV === 'production' ? 'production' : 'sandbox'
 const QBO_MINOR_VERSION = process.env.QBO_MINOR_VERSION || '75'
 const QBO_ITEM_REF = process.env.QBO_ITEM_REF || '1'
 let activePlanKey = String(process.env.APP_PLAN || 'starter').toLowerCase() === 'scale' ? 'scale' : 'starter'
+const REQUIRE_SHOPIFY_SESSION = process.env.REQUIRE_SHOPIFY_SESSION === 'true'
 
 const PLAN_CONFIG = {
   starter: {
@@ -69,6 +71,50 @@ app.use(
     },
   }),
 )
+
+function getSessionTokenFromRequest(req) {
+  const authHeader = String(req.get('authorization') || '')
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    return authHeader.slice(7).trim()
+  }
+
+  return String(req.get('x-shopify-session-token') || '').trim()
+}
+
+function verifyShopifySession(req, res, next) {
+  const path = req.path || ''
+  if (path.startsWith('/webhooks/') || path.startsWith('/auth/') || path === '/health') {
+    return next()
+  }
+
+  const token = getSessionTokenFromRequest(req)
+  if (!token) {
+    if (REQUIRE_SHOPIFY_SESSION) {
+      return res.status(401).json({ error: 'Missing Shopify session token' })
+    }
+    return next()
+  }
+
+  if (!SHOPIFY_API_SECRET || !SHOPIFY_API_KEY) {
+    return res.status(500).json({ error: 'Shopify API credentials are not configured' })
+  }
+
+  try {
+    const payload = jwt.verify(token, SHOPIFY_API_SECRET, {
+      algorithms: ['HS256'],
+      audience: SHOPIFY_API_KEY,
+    })
+
+    req.shopifySession = payload
+    const dest = String(payload?.dest || '')
+    req.shopDomainFromSession = dest.replace(/^https?:\/\//, '').toLowerCase()
+    return next()
+  } catch {
+    return res.status(401).json({ error: 'Invalid Shopify session token' })
+  }
+}
+
+app.use('/api', verifyShopifySession)
 
 function nowIso() {
   return new Date().toISOString()
@@ -800,7 +846,7 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
 
 app.get('/api/auth/qbo/start', async (req, res) => {
   try {
-    const shopDomain = String(req.query.shop || '').toLowerCase().trim()
+    const shopDomain = String(req.query.shop || req.shopDomainFromSession || '').toLowerCase().trim()
     const shop = await getShopByDomain(shopDomain)
 
     if (!shop) {
