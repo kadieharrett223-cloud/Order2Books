@@ -64,7 +64,7 @@ function App() {
   useEffect(() => {
     const loadPlan = async () => {
       try {
-        const response = await fetch('http://localhost:4000/api/plan');
+        const response = await fetch('/api/plan');
         if (!response.ok) return;
         const data = await response.json();
         setPlanData(data);
@@ -76,7 +76,7 @@ function App() {
   }, []);
 
   const refreshPlan = async () => {
-    const response = await fetch('http://localhost:4000/api/plan');
+    const response = await fetch('/api/plan');
     if (!response.ok) return;
     const data = await response.json();
     setPlanData(data);
@@ -85,7 +85,7 @@ function App() {
   const loadLogs = async () => {
     setLogsLoading(true);
     try {
-      const response = await fetch('http://localhost:4000/api/logs');
+      const response = await fetch('/api/logs');
       if (!response.ok) return;
       const data = await response.json();
       setLogs(Array.isArray(data.logs) ? data.logs : []);
@@ -115,7 +115,7 @@ function App() {
       return;
     }
     try {
-      const response = await fetch(`http://localhost:4000/api/syncs/${encodeURIComponent(searchQuery.trim())}`);
+      const response = await fetch(`/api/syncs/${encodeURIComponent(searchQuery.trim())}`);
       if (!response.ok) {
         setSearchResult({ error: 'Order not found' });
         return;
@@ -129,7 +129,7 @@ function App() {
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('http://localhost:4000/api/settings');
+      const response = await fetch('/api/settings');
       if (!response.ok) return;
       const data = await response.json();
       setSettings(data.settings || settings);
@@ -139,7 +139,7 @@ function App() {
 
   const saveSettings = async () => {
     try {
-      const response = await fetch('http://localhost:4000/api/settings', {
+      const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
@@ -160,7 +160,7 @@ function App() {
     setUpgradeMessage('');
     setUpgradeBusy(planKey);
     try {
-      const response = await fetch('http://localhost:4000/api/plan/upgrade', {
+      const response = await fetch('/api/plan/upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planKey }),
@@ -617,7 +617,7 @@ function App() {
                       <p className="form-hint">Connect your QuickBooks Online account to sync invoices.</p>
                       <button
                         className="btn-oauth"
-                        onClick={() => window.location.href = 'http://localhost:4000/api/auth/qbo/start'}
+                        onClick={() => window.location.href = '/api/auth/qbo/start'}
                       >
                         {settings.qboConnected ? '✓ Connected to QuickBooks' : '🔗 Connect QuickBooks Online'}
                       </button>
