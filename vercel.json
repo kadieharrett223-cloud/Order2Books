@@ -49,10 +49,18 @@
       "dest": "/frontend/vite.svg"
     },
     {
+      "src": "/order2books-logo.svg",
+      "dest": "/frontend/order2books-logo.svg"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/frontend/vite.svg"
+    },
+    {
       "src": "/(.*)",
       "dest": "/frontend/index.html"
     }
-  ],
+  ]
   "env": {
     "NODE_ENV": "production"
   }
