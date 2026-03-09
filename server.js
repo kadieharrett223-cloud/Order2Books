@@ -277,7 +277,6 @@ async function createOrderSyncRecord({
   shopifyOrderName,
   qboCustomerId,
   qboInvoiceId,
-  qboPaymentId,
   financialStatus,
   syncStatus,
   lastError,
@@ -286,17 +285,16 @@ async function createOrderSyncRecord({
   await db.run(
     `INSERT INTO order_syncs (
       shop_id, shopify_order_id, shopify_order_name,
-      qbo_customer_id, qbo_invoice_id, qbo_payment_id,
+      qbo_customer_id, qbo_invoice_id,
       financial_status, sync_status, last_error,
       synced_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       shopId,
       String(shopifyOrderId),
       shopifyOrderName,
       qboCustomerId,
       qboInvoiceId,
-      qboPaymentId,
       financialStatus,
       syncStatus,
       lastError || null,
@@ -312,7 +310,6 @@ async function updateOrderSyncStatus({
   shopifyOrderId,
   qboCustomerId,
   qboInvoiceId,
-  qboPaymentId,
   financialStatus,
   syncStatus,
   lastError,
@@ -322,7 +319,6 @@ async function updateOrderSyncStatus({
     `UPDATE order_syncs
      SET qbo_customer_id = ?,
          qbo_invoice_id = ?,
-         qbo_payment_id = ?,
          financial_status = ?,
          sync_status = ?,
          last_error = ?,
@@ -332,7 +328,6 @@ async function updateOrderSyncStatus({
     [
       qboCustomerId,
       qboInvoiceId,
-      qboPaymentId,
       financialStatus,
       syncStatus,
       lastError || null,
@@ -597,30 +592,6 @@ async function qboCreateInvoice(shop, { order, customerId }) {
   })
 
   return response.Invoice
-}
-
-async function qboCreatePayment(shop, { order, customerId, invoiceId }) {
-  const payload = {
-    CustomerRef: { value: customerId },
-    TotalAmt: Number(order.totalPrice || 0),
-    TxnDate: new Date(order.paidAt || nowIso()).toISOString().slice(0, 10),
-    PrivateNote: `source=Shopify; order=${order.orderName || order.orderId}`,
-    Line: [
-      {
-        Amount: Number(order.totalPrice || 0),
-        LinkedTxn: [{ TxnId: invoiceId, TxnType: 'Invoice' }],
-      },
-    ],
-  }
-
-  const response = await qboRequest({
-    shop,
-    method: 'POST',
-    path: `/v3/company/${shop.qbo_realm_id}/payment?minorversion=${QBO_MINOR_VERSION}`,
-    body: payload,
-  })
-
-  return response.Payment
 }
 
 async function fetchShopifyOrderDetails(shop, webhookPayload) {
@@ -911,7 +882,6 @@ app.get('/api/syncs', async (req, res) => {
       shopifyOrderName: row.shopify_order_name,
       qboCustomerId: row.qbo_customer_id,
       qboInvoiceId: row.qbo_invoice_id,
-      qboPaymentId: row.qbo_payment_id,
       financialStatus: row.financial_status,
       syncStatus: row.sync_status,
       lastError: row.last_error,
@@ -934,7 +904,6 @@ app.get('/api/syncs/:shopifyOrderId', async (req, res) => {
       shopifyOrderName: sync.shopify_order_name,
       qboCustomerId: sync.qbo_customer_id,
       qboInvoiceId: sync.qbo_invoice_id,
-      qboPaymentId: sync.qbo_payment_id,
       financialStatus: sync.financial_status,
       syncStatus: sync.sync_status,
       lastError: sync.last_error,
@@ -974,18 +943,12 @@ app.post('/api/syncs/:shopifyOrderId/retry', async (req, res) => {
       order,
       customerId: customer.Id,
     })
-    const payment = await qboCreatePayment(shop, {
-      order,
-      customerId: customer.Id,
-      invoiceId: invoice.Id,
-    })
 
     await updateOrderSyncStatus({
       shopId: shop.id,
       shopifyOrderId: sync.shopify_order_id,
       qboCustomerId: customer.Id,
       qboInvoiceId: invoice.Id,
-      qboPaymentId: payment.Id,
       financialStatus: order.financialStatus,
       syncStatus: 'synced',
       lastError: null,
@@ -996,7 +959,7 @@ app.post('/api/syncs/:shopifyOrderId/retry', async (req, res) => {
       shopifyOrderId: sync.shopify_order_id,
       eventType: 'retry',
       status: 'success',
-      message: `Retry successful: Created QB invoice ${invoice.Id}, payment ${payment.Id}`,
+      message: `Retry successful: Created QB invoice ${invoice.Id}`,
       payload: {},
     })
 
@@ -1009,7 +972,6 @@ app.post('/api/syncs/:shopifyOrderId/retry', async (req, res) => {
       shopifyOrderId: sync.shopify_order_id,
       qboCustomerId: sync.qbo_customer_id,
       qboInvoiceId: sync.qbo_invoice_id,
-      qboPaymentId: sync.qbo_payment_id,
       financialStatus: sync.financial_status,
       syncStatus: 'failed',
       lastError: errorMsg,
@@ -1163,7 +1125,6 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
         shopifyOrderName: order.orderName,
         qboCustomerId: null,
         qboInvoiceId: null,
-        qboPaymentId: null,
         financialStatus: order.financialStatus,
         syncStatus: 'pending',
         lastError: 'QuickBooks is not connected. Connect QB in Settings to sync this order.',
@@ -1193,7 +1154,6 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
         shopifyOrderName: order.orderName,
         qboCustomerId: null,
         qboInvoiceId: null,
-        qboPaymentId: null,
         financialStatus: order.financialStatus,
         syncStatus: 'processing',
         lastError: null,
@@ -1204,18 +1164,12 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
         order,
         customerId: customer.Id,
       })
-      const payment = await qboCreatePayment(shop, {
-        order,
-        customerId: customer.Id,
-        invoiceId: invoice.Id,
-      })
 
       await updateOrderSyncStatus({
         shopId: shop.id,
         shopifyOrderId: orderId,
         qboCustomerId: customer.Id,
         qboInvoiceId: invoice.Id,
-        qboPaymentId: payment.Id,
         financialStatus: order.financialStatus,
         syncStatus: 'synced',
         lastError: null,
@@ -1226,7 +1180,7 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
         shopifyOrderId: orderId,
         eventType: 'orders/paid',
         status: 'success',
-        message: `Created QB customer ${customer.Id}, invoice ${invoice.Id}, payment ${payment.Id}`,
+        message: `Created QB customer ${customer.Id}, invoice ${invoice.Id}`,
         payload: req.body,
       })
 
@@ -1242,7 +1196,6 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
         shopifyOrderId: orderId,
         qboCustomerId: null,
         qboInvoiceId: null,
-        qboPaymentId: null,
         financialStatus: order.financialStatus,
         syncStatus: 'failed',
         lastError: errorMsg,
@@ -1271,7 +1224,6 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
             shopifyOrderId: orderId,
             qboCustomerId: existing.qbo_customer_id,
             qboInvoiceId: existing.qbo_invoice_id,
-            qboPaymentId: existing.qbo_payment_id,
             financialStatus: existing.financial_status,
             syncStatus: 'failed',
             lastError: error.message,

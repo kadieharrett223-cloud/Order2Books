@@ -6,8 +6,15 @@ A modern SaaS dashboard for syncing Shopify orders to QuickBooks Online automati
 
 ✨ **Automatic Order Sync**
 - Real-time order import from Shopify to QuickBooks
-- Automatic invoice and payment creation
+- Automatic customer and invoice creation (Accounting API)
 - Order tracking with search functionality
+
+✅ **Accounting Sync Scope**
+- Uses QuickBooks Online Accounting API only
+- Does not use QuickBooks Payments API
+- Does not create Charge, Payment, or eCheck transactions
+- Does not store or process credit card data
+- Payments remain in Shopify and the merchant's payment gateway
 
 🔐 **Plan-Based Pricing**
 - Starter Plan: $9.99/month (200 orders/month)

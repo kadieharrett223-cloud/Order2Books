@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS order_syncs (
   shopify_order_name TEXT,
   qbo_customer_id TEXT,
   qbo_invoice_id TEXT,
-  qbo_payment_id TEXT,
   financial_status TEXT,
   sync_status TEXT NOT NULL,
   last_error TEXT,
