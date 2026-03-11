@@ -91,16 +91,16 @@ const TUTORIAL_STEPS = [
     description: 'This quick tour will walk you through the key steps to start syncing your Shopify orders to QuickBooks. Press Next to begin.',
   },
   {
-    page: 'mapping',
-    navTarget: 'mapping',
-    title: '🧩 Step 1 — Product Mapping',
-    description: 'Start here! Map your Shopify products to QuickBooks items. Any products that couldn\'t be auto-matched show under "Items Needing Attention" — search and select the correct QB item for each.',
-  },
-  {
     page: 'settings',
     navTarget: 'settings',
-    title: '� Step 2 — Connect QuickBooks',
+    title: '📚 Step 1 — Connect QuickBooks',
     description: 'Go to Settings and click "Connect QuickBooks Online" to authorize your QB account. Once connected, invoices will be created automatically for every paid Shopify order.',
+  },
+  {
+    page: 'mapping',
+    navTarget: 'mapping',
+    title: '🧩 Step 2 — Product Mapping',
+    description: 'Start here! Map your Shopify products to QuickBooks items. Any products that couldn\'t be auto-matched show under "Items Needing Attention" — search and select the correct QB item for each.',
   },
   {
     page: 'dashboard',
