@@ -83,50 +83,50 @@ const DEFAULT_PLAN_DATA = {
   ],
 };
 
-  const TUTORIAL_STEPS = [
-    {
-      page: 'dashboard',
-      title: '👋 Welcome to Order2Books',
-      description: 'Sync Shopify orders to QuickBooks automatically. Let\'s get you started!',
-      target: null,
-      position: 'center',
-    },
-    {
-      page: 'dashboard',
-      title: '📊 Dashboard Overview',
-      description: 'Here\'s where you\'ll see all your synced orders, recent activity, and sync status at a glance.',
-      target: '.page-header',
-      position: 'bottom',
-    },
-    {
-      page: 'settings',
-      title: '🔗 Connect Shopify',
-      description: 'First, connect your Shopify store by adding your store domain and API token in Settings.',
-      target: '.settings-form',
-      position: 'bottom',
-    },
-    {
-      page: 'settings',
-      title: '📚 Connect QuickBooks',
-      description: 'Then, authorize QuickBooks Online to sync invoices automatically.',
-      target: '[value="qbo"]',
-      position: 'bottom',
-    },
-    {
-      page: 'mapping',
-      title: '🧩 Product Mapping',
-      description: 'Map your Shopify products to QuickBooks items. Auto-mapped items are shown below, and any items needing attention can be manually mapped.',
-      target: '.section-card',
-      position: 'bottom',
-    },
-    {
-      page: 'dashboard',
-      title: '✅ All Set!',
-      description: 'You\'re ready to sync orders! Orders from your Shopify store will automatically be converted to invoices in QuickBooks. Use the Sync Log to track activity.',
-      target: null,
-      position: 'center',
-    },
-  ];
+const TUTORIAL_STEPS = [
+  {
+    page: 'dashboard',
+    navTarget: null,
+    title: '👋 Welcome to Order2Books',
+    description: 'This quick tour will walk you through the key steps to start syncing your Shopify orders to QuickBooks. Press Next to begin.',
+  },
+  {
+    page: 'mapping',
+    navTarget: 'mapping',
+    title: '🧩 Step 1 — Product Mapping',
+    description: 'Start here! Map your Shopify products to QuickBooks items. Any products that couldn\'t be auto-matched show under "Items Needing Attention" — search and select the correct QB item for each.',
+  },
+  {
+    page: 'settings',
+    navTarget: 'settings',
+    title: '🔗 Step 2 — Connect Shopify',
+    description: 'In Settings, enter your Shopify store domain and API access token to allow Order2Books to read your orders.',
+  },
+  {
+    page: 'settings',
+    navTarget: 'settings',
+    title: '📚 Step 3 — Connect QuickBooks',
+    description: 'Click "Connect QuickBooks Online" to authorize your QB account. Once connected, invoices will be created automatically for every paid Shopify order.',
+  },
+  {
+    page: 'dashboard',
+    navTarget: 'dashboard',
+    title: '📊 Step 4 — Your Dashboard',
+    description: 'Come back here to monitor synced orders, spot errors, and search for any order by Shopify ID. The dashboard refreshes automatically every 5 minutes.',
+  },
+  {
+    page: 'syncLog',
+    navTarget: 'syncLog',
+    title: '📋 Step 5 — Sync Log',
+    description: 'The Sync Log shows every webhook, invoice creation, and error in detail. Use it to retry failed syncs and track exactly what happened.',
+  },
+  {
+    page: 'dashboard',
+    navTarget: null,
+    title: '✅ You\'re all set!',
+    description: 'Order2Books is ready to go. Paid Shopify orders will sync to QuickBooks as invoices automatically. You can replay this tutorial any time from the sidebar.',
+  },
+];
 
 function formatRelativeTime(value) {
   if (!value) return '—';
@@ -246,51 +246,7 @@ function App() {
     }
   }, []);
 
-    useEffect(() => {
-      if (!tutorialActive || !TUTORIAL_STEPS[tutorialStep]) return;
 
-      const step = TUTORIAL_STEPS[tutorialStep];
-      const spotlight = document.getElementById(`tutorial-highlight-${tutorialStep}`);
-      const card = document.getElementById(`tutorial-card-${tutorialStep}`);
-
-      if (!spotlight || !card) return;
-
-      // Position spotlight around target
-      if (step.target) {
-        const target = document.querySelector(step.target);
-        if (target) {
-          const rect = target.getBoundingClientRect();
-          const padding = 12;
-        
-          spotlight.style.left = `${rect.left - padding + window.scrollX}px`;
-          spotlight.style.top = `${rect.top - padding + window.scrollY}px`;
-          spotlight.style.width = `${rect.width + padding * 2}px`;
-          spotlight.style.height = `${rect.height + padding * 2}px`;
-
-          // Position card near target
-          const cardRect = card.getBoundingClientRect();
-          let cardTop = rect.bottom + 20;
-          let cardLeft = rect.left + rect.width / 2 - cardRect.width / 2;
-
-          // Keep card in viewport
-          if (cardLeft < 20) cardLeft = 20;
-          if (cardLeft + cardRect.width > window.innerWidth - 20) {
-            cardLeft = window.innerWidth - cardRect.width - 20;
-          }
-          if (cardTop + cardRect.height > window.innerHeight) {
-            cardTop = rect.top - cardRect.height - 20;
-          }
-
-          card.style.left = `${cardLeft + window.scrollX}px`;
-          card.style.top = `${cardTop + window.scrollY}px`;
-        }
-      } else {
-        // Center card for center position tutorials
-        card.style.left = '50%';
-        card.style.top = '50%';
-        card.style.transform = 'translate(-50%, -50%)';
-      }
-    }, [tutorialActive, tutorialStep]);
 
   const startTutorial = () => {
     setTutorialActive(true);
@@ -583,21 +539,21 @@ function App() {
         {/* Sidebar */}
         <aside className="sidebar">
           <nav className="sidebar-nav">
-            <button className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`} onClick={() => setActivePage('dashboard')}>
+            <button className={`nav-item ${activePage === 'mapping' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'mapping' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('mapping')}>
+              <span className="nav-icon">🧩</span>
+              <span className="nav-label">Mapping</span>
+            </button>
+            <button className={`nav-item ${activePage === 'dashboard' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'dashboard' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('dashboard')}>
               <span className="nav-icon">🏠</span>
               <span className="nav-label">Dashboard</span>
             </button>
-            <button className={`nav-item ${activePage === 'syncLog' ? 'active' : ''}`} onClick={() => setActivePage('syncLog')}>
+            <button className={`nav-item ${activePage === 'syncLog' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'syncLog' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('syncLog')}>
               <span className="nav-icon">📊</span>
               <span className="nav-label">Sync Log</span>
             </button>
-            <button className={`nav-item ${activePage === 'settings' ? 'active' : ''}`} onClick={() => setActivePage('settings')}>
+            <button className={`nav-item ${activePage === 'settings' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'settings' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('settings')}>
               <span className="nav-icon">⚙</span>
               <span className="nav-label">Settings</span>
-            </button>
-            <button className={`nav-item ${activePage === 'mapping' ? 'active' : ''}`} onClick={() => setActivePage('mapping')}>
-              <span className="nav-icon">🧩</span>
-              <span className="nav-label">Mapping</span>
             </button>
             <button className={`nav-item ${activePage === 'help' ? 'active' : ''}`} onClick={() => setActivePage('help')}>
               <span className="nav-icon">❓</span>
@@ -1294,20 +1250,20 @@ function App() {
       </div>
 
         {tutorialActive && TUTORIAL_STEPS[tutorialStep] && (
-            <div className="tutorial-overlay">
-              <div className="tutorial-backdrop" onClick={skipTutorial}></div>
-            <div className="tutorial-spotlight" id={`tutorial-highlight-${tutorialStep}`}></div>
-              <div className="tutorial-card" id={`tutorial-card-${tutorialStep}`} onClick={(event) => event.stopPropagation()}>
+          <div className="tutorial-overlay">
+            <div className="tutorial-backdrop"></div>
+            <div className="tutorial-card" onClick={(e) => e.stopPropagation()}>
               <div className="tutorial-header">
-                <h3>{TUTORIAL_STEPS[tutorialStep].title}</h3>
-                  <button className="tutorial-close" onClick={skipTutorial}>✕</button>
+                <div className="tutorial-step-tag">Step {tutorialStep + 1} of {TUTORIAL_STEPS.length}</div>
+                <button className="tutorial-close" onClick={skipTutorial}>✕</button>
               </div>
+              <h3 className="tutorial-title">{TUTORIAL_STEPS[tutorialStep].title}</h3>
               <p className="tutorial-description">{TUTORIAL_STEPS[tutorialStep].description}</p>
               <div className="tutorial-footer">
                 <div className="tutorial-progress">
                   {TUTORIAL_STEPS.map((_, idx) => (
-                    <div 
-                      key={idx} 
+                    <div
+                      key={idx}
                       className={`tutorial-dot ${idx === tutorialStep ? 'active' : ''} ${idx < tutorialStep ? 'completed' : ''}`}
                     />
                   ))}
@@ -1315,7 +1271,7 @@ function App() {
                 <div className="tutorial-actions">
                   <button className="btn-text" onClick={skipTutorial}>Skip</button>
                   <button className="btn-action" onClick={nextTutorialStep}>
-                    {tutorialStep === TUTORIAL_STEPS.length - 1 ? 'Finish' : 'Next'}
+                    {tutorialStep === TUTORIAL_STEPS.length - 1 ? 'Finish' : 'Next →'}
                   </button>
                 </div>
               </div>
