@@ -31,6 +31,10 @@ const QBO_ENV = process.env.QBO_ENV === 'production' ? 'production' : 'sandbox'
 const QBO_MINOR_VERSION = process.env.QBO_MINOR_VERSION || '75'
 const QBO_ITEM_REF = process.env.QBO_ITEM_REF || '1'
 const QBO_MISC_ITEM_REF = process.env.QBO_MISC_ITEM_REF || QBO_ITEM_REF
+const CAPTURE_MODES = {
+  AUTO: 'auto',
+  MANUAL: 'manual',
+}
 let activePlanKey = String(process.env.APP_PLAN || 'starter').toLowerCase() === 'scale' ? 'scale' : 'starter'
 const REQUIRE_SHOPIFY_SESSION = process.env.REQUIRE_SHOPIFY_SESSION === 'true'
 
@@ -292,6 +296,19 @@ async function getAppSettingsRecord() {
   return db.get('SELECT * FROM app_settings WHERE id = 1')
 }
 
+function normalizeCaptureMode(value) {
+  const captureMode = String(value || '').toLowerCase().trim()
+  if (captureMode === CAPTURE_MODES.MANUAL) {
+    return CAPTURE_MODES.MANUAL
+  }
+  return CAPTURE_MODES.AUTO
+}
+
+async function getCaptureMode() {
+  const settings = await getAppSettingsRecord()
+  return normalizeCaptureMode(settings?.capture_mode)
+}
+
 async function getActiveInstalledShop(req) {
   const db = await getDb()
   const requestedShopDomain = String(req?.shopDomainFromSession || '').toLowerCase().trim()
@@ -409,8 +426,69 @@ function buildDemoSettings() {
     qboCompanyName: 'Demo QuickBooks Company',
     autoDecrementInventory: false,
     autoCreateQboItems: true,
+    captureMode: CAPTURE_MODES.AUTO,
     isDemo: true,
   }
+}
+
+function buildDemoMappings() {
+  const autoMapped = [
+    {
+      id: 'demo-map-1',
+      shopifyTitle: 'Classic Tee',
+      shopifySku: 'TEE-001',
+      qboItemId: '88',
+      qboItemName: 'Classic Tee',
+      mappingSource: 'sku',
+      status: 'mapped',
+      updatedAt: nowIso(),
+    },
+    {
+      id: 'demo-map-2',
+      shopifyTitle: 'Travel Mug',
+      shopifySku: 'MUG-014',
+      qboItemId: '102',
+      qboItemName: 'Travel Mug',
+      mappingSource: 'name',
+      status: 'mapped',
+      updatedAt: nowIso(),
+    },
+    {
+      id: 'demo-map-3',
+      shopifyTitle: 'Hoodie - Black',
+      shopifySku: 'HD-BLK-M',
+      qboItemId: '131',
+      qboItemName: 'Hoodie Black Medium',
+      mappingSource: 'auto-created',
+      status: 'mapped',
+      updatedAt: nowIso(),
+    },
+  ]
+
+  const needsAttention = [
+    {
+      id: 'demo-map-attn-1',
+      shopifyTitle: 'Gift Wrap Service',
+      shopifySku: 'WRAP-SVC',
+      qboItemId: null,
+      qboItemName: null,
+      mappingSource: 'fallback',
+      status: 'needs_attention',
+      updatedAt: nowIso(),
+    },
+    {
+      id: 'demo-map-attn-2',
+      shopifyTitle: 'Limited Edition Bundle',
+      shopifySku: 'BUNDLE-LTD',
+      qboItemId: null,
+      qboItemName: null,
+      mappingSource: 'fallback',
+      status: 'needs_attention',
+      updatedAt: nowIso(),
+    },
+  ]
+
+  return { autoMapped, needsAttention }
 }
 
 async function countMonthlyOrderSyncs() {
@@ -851,9 +929,95 @@ async function qboCreateItemFromShopifyLine(shop, line) {
   return response.Item || null
 }
 
+function buildMappingKey(line) {
+  return (
+    line.variantId ||
+    line.productId ||
+    (line.sku ? `sku:${String(line.sku).toLowerCase()}` : null) ||
+    `title:${String(line.title || '').toLowerCase()}`
+  )
+}
+
+async function getMappingByLine(shopId, line) {
+  const mappingKey = buildMappingKey(line)
+  const db = await getDb()
+
+  return db.get(
+    `SELECT *
+     FROM product_mappings
+     WHERE shop_id = ? AND mapping_key = ?`,
+    [shopId, mappingKey],
+  )
+}
+
+async function upsertProductMapping({ shopId, line, qboItemId, qboItemName, mappingSource, status }) {
+  const mappingKey = buildMappingKey(line)
+  const db = await getDb()
+
+  await db.run(
+    `INSERT INTO product_mappings (
+      shop_id,
+      mapping_key,
+      shopify_product_id,
+      shopify_variant_id,
+      shopify_sku,
+      shopify_title,
+      qbo_item_id,
+      qbo_item_name,
+      mapping_source,
+      status,
+      created_at,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(shop_id, mapping_key) DO UPDATE SET
+      shopify_product_id = excluded.shopify_product_id,
+      shopify_variant_id = excluded.shopify_variant_id,
+      shopify_sku = excluded.shopify_sku,
+      shopify_title = excluded.shopify_title,
+      qbo_item_id = excluded.qbo_item_id,
+      qbo_item_name = excluded.qbo_item_name,
+      mapping_source = excluded.mapping_source,
+      status = excluded.status,
+      updated_at = excluded.updated_at`,
+    [
+      shopId,
+      mappingKey,
+      line.productId || null,
+      line.variantId || null,
+      line.sku || null,
+      line.title || 'Shopify Item',
+      qboItemId || null,
+      qboItemName || null,
+      mappingSource,
+      status,
+      nowIso(),
+      nowIso(),
+    ],
+  )
+}
+
 async function qboResolveItemRef(shop, line) {
+  const existingMapping = await getMappingByLine(shop.id, line)
+  if (existingMapping?.status === 'mapped' && existingMapping.qbo_item_id) {
+    return {
+      value: existingMapping.qbo_item_id,
+      name: existingMapping.qbo_item_name || 'Mapped Item',
+      mapped: true,
+      source: 'saved',
+    }
+  }
+
   const mappedBySku = await qboFindItemBySku(shop, line.sku)
   if (mappedBySku?.Id) {
+    await upsertProductMapping({
+      shopId: shop.id,
+      line,
+      qboItemId: mappedBySku.Id,
+      qboItemName: mappedBySku.Name,
+      mappingSource: 'sku',
+      status: 'mapped',
+    })
+
     return {
       value: mappedBySku.Id,
       name: mappedBySku.Name,
@@ -864,6 +1028,15 @@ async function qboResolveItemRef(shop, line) {
 
   const mappedByName = await qboFindItemByName(shop, line.title)
   if (mappedByName?.Id) {
+    await upsertProductMapping({
+      shopId: shop.id,
+      line,
+      qboItemId: mappedByName.Id,
+      qboItemName: mappedByName.Name,
+      mappingSource: 'name',
+      status: 'mapped',
+    })
+
     return {
       value: mappedByName.Id,
       name: mappedByName.Name,
@@ -879,6 +1052,15 @@ async function qboResolveItemRef(shop, line) {
     try {
       const createdItem = await qboCreateItemFromShopifyLine(shop, line)
       if (createdItem?.Id) {
+        await upsertProductMapping({
+          shopId: shop.id,
+          line,
+          qboItemId: createdItem.Id,
+          qboItemName: createdItem.Name,
+          mappingSource: 'auto-created',
+          status: 'mapped',
+        })
+
         return {
           value: createdItem.Id,
           name: createdItem.Name,
@@ -890,6 +1072,15 @@ async function qboResolveItemRef(shop, line) {
       // Fall back to misc item when automatic creation is unavailable.
     }
   }
+
+  await upsertProductMapping({
+    shopId: shop.id,
+    line,
+    qboItemId: null,
+    qboItemName: null,
+    mappingSource: 'fallback',
+    status: 'needs_attention',
+  })
 
   return {
     value: QBO_MISC_ITEM_REF,
@@ -926,6 +1117,69 @@ async function qboFindOrCreateCustomer(shop, order) {
   }
 
   return customer
+}
+
+async function fetchShopifyProducts(shop, limit = 100) {
+  const response = await fetch(
+    `https://${shop.shop_domain}/admin/api/${SHOPIFY_API_VERSION}/products.json?limit=${Number(limit)}`,
+    {
+      headers: {
+        'X-Shopify-Access-Token': shop.shopify_access_token,
+        'Content-Type': 'application/json',
+      },
+    },
+  )
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed fetching Shopify products: ${message}`)
+  }
+
+  const data = await response.json()
+  return Array.isArray(data?.products) ? data.products : []
+}
+
+function mapShopifyProductVariant(product, variant) {
+  return {
+    title: variant.title && variant.title !== 'Default Title' ? `${product.title} - ${variant.title}` : product.title,
+    sku: variant.sku || null,
+    variantTitle: variant.title || null,
+    productId: product.id ? String(product.id) : null,
+    variantId: variant.id ? String(variant.id) : null,
+    quantity: 1,
+    price: Number(variant.price || 0),
+  }
+}
+
+async function runMappingScanForShop(shop) {
+  if (!shop?.id || !shop?.shopify_access_token || !shop?.qbo_realm_id) {
+    return
+  }
+
+  const products = await fetchShopifyProducts(shop, 100)
+  let mappedCount = 0
+  let needsAttentionCount = 0
+
+  for (const product of products) {
+    for (const variant of product.variants || []) {
+      const line = mapShopifyProductVariant(product, variant)
+      const resolvedItem = await qboResolveItemRef(shop, line)
+
+      if (resolvedItem.mapped) {
+        mappedCount += 1
+      } else {
+        needsAttentionCount += 1
+      }
+    }
+  }
+
+  await writeSyncLog({
+    shopId: shop.id,
+    eventType: 'mapping/scan',
+    status: 'success',
+    message: `Mapping scan complete. Auto mapped: ${mappedCount}, needs attention: ${needsAttentionCount}`,
+    payload: { mappedCount, needsAttentionCount },
+  })
 }
 
 function buildQboSalesItemLine({ amount, description, quantity, unitPrice, itemRef }) {
@@ -1370,6 +1624,11 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
       payload: { realmId },
     })
 
+    const refreshedShop = await getShopById(shop.id)
+    runMappingScanForShop(refreshedShop).catch((error) => {
+      console.error('Post-install mapping scan failed:', error)
+    })
+
     return res.redirect(`${APP_URL}/?qbo_connected=1&shop=${encodeURIComponent(shop.shop_domain)}`)
   } catch (error) {
     await writeSyncLog({
@@ -1567,6 +1826,106 @@ app.get('/api/logs', async (req, res) => {
   return res.json({ demoMode: false, logs })
 })
 
+app.get('/api/mappings', async (req, res) => {
+  if (await shouldUseDemoMode(req)) {
+    return res.json({
+      demoMode: true,
+      ...buildDemoMappings(),
+    })
+  }
+
+  const activeShop = await getActiveInstalledShop(req)
+  const db = await getDb()
+  const mappings = await db.all(
+    `SELECT *
+     FROM product_mappings
+     WHERE shop_id = ?
+     ORDER BY datetime(updated_at) DESC
+     LIMIT 500`,
+    [activeShop.id],
+  )
+
+  const formatted = mappings.map((mapping) => ({
+    id: mapping.id,
+    shopifyTitle: mapping.shopify_title,
+    shopifySku: mapping.shopify_sku,
+    qboItemId: mapping.qbo_item_id,
+    qboItemName: mapping.qbo_item_name,
+    mappingSource: mapping.mapping_source,
+    status: mapping.status,
+    updatedAt: mapping.updated_at,
+  }))
+
+  return res.json({
+    demoMode: false,
+    autoMapped: formatted.filter((mapping) => mapping.status === 'mapped'),
+    needsAttention: formatted.filter((mapping) => mapping.status !== 'mapped'),
+  })
+})
+
+app.post('/api/mappings/scan', async (req, res) => {
+  if (await shouldUseDemoMode(req)) {
+    return res.status(403).json({ error: 'Install the app in Shopify to run live mapping scans.' })
+  }
+
+  const activeShop = await getActiveInstalledShop(req)
+
+  if (!activeShop?.qbo_access_token || !activeShop?.qbo_realm_id) {
+    return res.status(400).json({ error: 'QuickBooks must be connected before running a mapping scan.' })
+  }
+
+  runMappingScanForShop(activeShop).catch((error) => {
+    console.error('Mapping scan failed:', error)
+  })
+
+  return res.status(202).json({ success: true, message: 'Mapping scan started.' })
+})
+
+app.post('/api/mappings/:mappingId', async (req, res) => {
+  if (await shouldUseDemoMode(req)) {
+    return res.status(403).json({ error: 'Install the app in Shopify to edit live mappings.' })
+  }
+
+  const mappingId = Number(req.params.mappingId)
+  if (!mappingId) {
+    return res.status(400).json({ error: 'Invalid mapping id' })
+  }
+
+  const { qboItemId, qboItemName } = req.body || {}
+  if (!qboItemId || !qboItemName) {
+    return res.status(400).json({ error: 'QuickBooks item id and name are required' })
+  }
+
+  const activeShop = await getActiveInstalledShop(req)
+  const db = await getDb()
+  const existing = await db.get('SELECT * FROM product_mappings WHERE id = ? AND shop_id = ?', [mappingId, activeShop.id])
+
+  if (!existing) {
+    return res.status(404).json({ error: 'Mapping not found' })
+  }
+
+  await db.run(
+    `UPDATE product_mappings
+     SET qbo_item_id = ?,
+         qbo_item_name = ?,
+         mapping_source = 'manual',
+         status = 'mapped',
+         updated_at = ?
+     WHERE id = ? AND shop_id = ?`,
+    [String(qboItemId), String(qboItemName), nowIso(), mappingId, activeShop.id],
+  )
+
+  await writeSyncLog({
+    shopId: activeShop.id,
+    eventType: 'mapping/update',
+    status: 'success',
+    message: `Manual mapping saved for ${existing.shopify_title}`,
+    payload: { mappingId, qboItemId, qboItemName },
+  })
+
+  return res.json({ success: true })
+})
+
 app.get('/api/settings', async (req, res) => {
   if (await shouldUseDemoMode(req)) {
     return res.json({
@@ -1589,6 +1948,7 @@ app.get('/api/settings', async (req, res) => {
       qboCompanyName: activeShop?.qbo_realm_id ? `QuickBooks realm ${activeShop.qbo_realm_id}` : '',
       autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
       autoCreateQboItems: settings?.auto_create_qbo_items !== 0,
+      captureMode: normalizeCaptureMode(settings?.capture_mode),
       isDemo: false,
     },
   })
@@ -1599,7 +1959,8 @@ app.post('/api/settings', async (req, res) => {
     return res.status(403).json({ error: 'Install the app in Shopify to save live settings.' })
   }
 
-  const { shopifyDomain, shopifyApiKey, autoDecrementInventory, autoCreateQboItems } = req.body
+  const { shopifyDomain, shopifyApiKey, autoDecrementInventory, autoCreateQboItems, captureMode } = req.body
+  const normalizedCaptureMode = normalizeCaptureMode(captureMode)
 
   const db = await getDb()
   
@@ -1612,6 +1973,7 @@ app.post('/api/settings', async (req, res) => {
            shopify_api_key = ?,
            auto_decrement_inventory = ?,
            auto_create_qbo_items = ?,
+           capture_mode = ?,
            updated_at = datetime('now')
        WHERE id = 1`,
       [
@@ -1619,13 +1981,20 @@ app.post('/api/settings', async (req, res) => {
         shopifyApiKey && shopifyApiKey !== '***' ? shopifyApiKey : existing.shopify_api_key,
         autoDecrementInventory ? 1 : 0,
         autoCreateQboItems === false ? 0 : 1,
+        normalizedCaptureMode,
       ],
     )
   } else {
     await db.run(
-      `INSERT INTO app_settings (id, shopify_domain, shopify_api_key, auto_decrement_inventory, auto_create_qbo_items)
-       VALUES (1, ?, ?, ?, ?)`,
-      [shopifyDomain || '', shopifyApiKey || '', autoDecrementInventory ? 1 : 0, autoCreateQboItems === false ? 0 : 1],
+      `INSERT INTO app_settings (id, shopify_domain, shopify_api_key, auto_decrement_inventory, auto_create_qbo_items, capture_mode)
+       VALUES (1, ?, ?, ?, ?, ?)`,
+      [
+        shopifyDomain || '',
+        shopifyApiKey || '',
+        autoDecrementInventory ? 1 : 0,
+        autoCreateQboItems === false ? 0 : 1,
+        normalizedCaptureMode,
+      ],
     )
   }
 
@@ -1658,6 +2027,7 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
 
     const order = await fetchShopifyOrderDetails(shop, req.body || {})
     orderId = String(order.orderId)
+    const captureMode = await getCaptureMode()
 
     const existing = await getOrderSyncByUniqueKey(shop.id, orderId)
     if (existing) {
@@ -1674,6 +2044,34 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
     }
 
     if (order.financialStatus !== 'paid') {
+      if (captureMode === CAPTURE_MODES.MANUAL && ['authorized', 'pending'].includes(order.financialStatus)) {
+        await createOrderSyncRecord({
+          shopId: shop.id,
+          shopifyOrderId: orderId,
+          shopifyOrderName: order.orderName,
+          qboCustomerId: null,
+          qboInvoiceId: null,
+          financialStatus: order.financialStatus,
+          syncStatus: 'pending_capture',
+          lastError: 'Awaiting payment capture in Shopify before invoice sync.',
+        })
+
+        await writeSyncLog({
+          shopId: shop.id,
+          shopifyOrderId: orderId,
+          eventType: 'orders/paid',
+          status: 'pending_capture',
+          message: 'Order authorized but not captured yet. Waiting for capture before QuickBooks sync.',
+          payload: req.body,
+        })
+
+        return res.status(202).json({
+          success: true,
+          pending: true,
+          message: 'Order authorized. Sync will continue after capture.',
+        })
+      }
+
       throw new Error('Order financial_status is not paid')
     }
 

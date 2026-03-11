@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = {
   qboCompanyName: '',
   autoDecrementInventory: false,
   autoCreateQboItems: true,
+  captureMode: 'auto',
   isDemo: false,
 };
 
@@ -119,6 +120,10 @@ function App() {
   const [syncs, setSyncs] = useState([]);
   const [syncsLoading, setSyncsLoading] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
+  const [mappings, setMappings] = useState({ autoMapped: [], needsAttention: [] });
+  const [mappingsLoading, setMappingsLoading] = useState(false);
+  const [mappingEdits, setMappingEdits] = useState({});
+  const [scanBusy, setScanBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -149,11 +154,30 @@ function App() {
     }
   };
 
+  const loadMappings = async () => {
+    setMappingsLoading(true);
+    try {
+      const response = await apiFetch('/api/mappings');
+      if (!response.ok) return;
+      const data = await response.json();
+      setMappings({
+        autoMapped: Array.isArray(data.autoMapped) ? data.autoMapped : [],
+        needsAttention: Array.isArray(data.needsAttention) ? data.needsAttention : [],
+      });
+      setDemoMode(Boolean(data.demoMode));
+    } catch {
+      setMappings({ autoMapped: [], needsAttention: [] });
+    } finally {
+      setMappingsLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadPlan();
     loadSyncs();
     loadSettings();
     loadLogs();
+    loadMappings();
   }, []);
 
   useEffect(() => {
@@ -189,6 +213,9 @@ function App() {
   useEffect(() => {
     if (activePage === 'syncLog') {
       loadLogs();
+    }
+    if (activePage === 'mapping') {
+      loadMappings();
     }
   }, [activePage]);
 
@@ -252,7 +279,60 @@ function App() {
   };
 
   const refreshAppData = async () => {
-    await Promise.all([loadPlan(), loadSettings(), loadSyncs(), loadLogs()]);
+    await Promise.all([loadPlan(), loadSettings(), loadSyncs(), loadLogs(), loadMappings()]);
+  };
+
+  const saveMapping = async (mappingId) => {
+    const edit = mappingEdits[mappingId] || {};
+    const qboItemId = String(edit.qboItemId || '').trim();
+    const qboItemName = String(edit.qboItemName || '').trim();
+
+    if (!qboItemId || !qboItemName) {
+      alert('Enter both QuickBooks item id and item name.');
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/api/mappings/${mappingId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qboItemId, qboItemName }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Failed to save mapping.');
+        return;
+      }
+
+      await loadMappings();
+    } catch {
+      alert('Failed to save mapping.');
+    }
+  };
+
+  const runMappingScan = async () => {
+    if (demoMode) {
+      alert('Install on Shopify to run live mapping scans.');
+      return;
+    }
+
+    setScanBusy(true);
+    try {
+      const response = await apiFetch('/api/mappings/scan', { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        alert(data.error || 'Mapping scan failed to start.');
+        return;
+      }
+
+      alert(data.message || 'Mapping scan started. Refresh in a moment to see updates.');
+      await loadMappings();
+    } catch {
+      alert('Mapping scan failed to start.');
+    } finally {
+      setScanBusy(false);
+    }
   };
 
   const handleUpgrade = async (planKey) => {
@@ -344,6 +424,10 @@ function App() {
               <span className="nav-icon">⚙</span>
               <span className="nav-label">Settings</span>
             </button>
+            <button className={`nav-item ${activePage === 'mapping' ? 'active' : ''}`} onClick={() => setActivePage('mapping')}>
+              <span className="nav-icon">🧩</span>
+              <span className="nav-label">Mapping</span>
+            </button>
             <button className={`nav-item ${activePage === 'help' ? 'active' : ''}`} onClick={() => setActivePage('help')}>
               <span className="nav-icon">❓</span>
               <span className="nav-label">Help</span>
@@ -368,12 +452,14 @@ function App() {
               {activePage === 'dashboard' && 'OrderBooks Dashboard'}
               {activePage === 'syncLog' && 'Sync Log'}
               {activePage === 'settings' && 'Settings'}
+              {activePage === 'mapping' && 'Product Mapping'}
               {activePage === 'help' && 'Help'}
             </h2>
             <p className="page-subtitle">
               {activePage === 'dashboard' && 'Monitor sync health between Shopify and QuickBooks'}
               {activePage === 'syncLog' && 'Track sync events, webhook outcomes, and retry history'}
               {activePage === 'settings' && 'Manage plan, defaults, and integration preferences'}
+              {activePage === 'mapping' && 'Review auto-mapped products and fix items needing attention'}
               {activePage === 'help' && 'Quick links and support guidance for OrderBooks'}
             </p>
           </div>
@@ -775,6 +861,21 @@ function App() {
                   <section className="section-card">
                     <h3 className="section-title">Sync Options</h3>
                     <div className="settings-form">
+                      <div className="form-group">
+                        <label htmlFor="captureMode">Shopify payment capture mode</label>
+                        <select
+                          id="captureMode"
+                          className="form-input"
+                          disabled={demoMode}
+                          value={settings.captureMode}
+                          onChange={(e) => setSettings({ ...settings, captureMode: e.target.value })}
+                        >
+                          <option value="auto">Auto capture payments</option>
+                          <option value="manual">Manual capture payments</option>
+                        </select>
+                        <p className="form-hint">Manual capture mode keeps authorized orders pending until payment is captured in Shopify.</p>
+                      </div>
+
                       <div className="form-checkbox">
                         <input
                           id="autoCreateQboItems"
@@ -883,6 +984,111 @@ function App() {
                   </div>
                 </section>
               ) : null}
+            </>
+          ) : null}
+
+          {activePage === 'mapping' ? (
+            <>
+              <section className="section-card">
+                <div className="section-header">
+                  <h3 className="section-title">Auto Mapped Items</h3>
+                  <button className="btn-action" onClick={runMappingScan} disabled={scanBusy}>
+                    {scanBusy ? 'Scanning...' : 'Run Scan'}
+                  </button>
+                </div>
+                <div className="table-container">
+                  <table className="sync-table">
+                    <thead>
+                      <tr>
+                        <th>Shopify Product</th>
+                        <th>SKU</th>
+                        <th>QuickBooks Item</th>
+                        <th>Source</th>
+                        <th>Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mappings.autoMapped.length === 0 ? (
+                        <tr>
+                          <td colSpan="5">{mappingsLoading ? 'Loading mapped items...' : 'No mapped items yet.'}</td>
+                        </tr>
+                      ) : mappings.autoMapped.map((mapping) => (
+                        <tr key={mapping.id}>
+                          <td>{mapping.shopifyTitle}</td>
+                          <td>{mapping.shopifySku || '—'}</td>
+                          <td>{mapping.qboItemName || '—'} {mapping.qboItemId ? `(#${mapping.qboItemId})` : ''}</td>
+                          <td>{mapping.mappingSource || '—'}</td>
+                          <td>{formatLogTime(mapping.updatedAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="section-card">
+                <h3 className="section-title">Items Needing Attention</h3>
+                <div className="table-container">
+                  <table className="sync-table">
+                    <thead>
+                      <tr>
+                        <th>Shopify Product</th>
+                        <th>SKU</th>
+                        <th>QuickBooks Item ID</th>
+                        <th>QuickBooks Item Name</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mappings.needsAttention.length === 0 ? (
+                        <tr>
+                          <td colSpan="5">{mappingsLoading ? 'Loading items...' : 'No items need attention.'}</td>
+                        </tr>
+                      ) : mappings.needsAttention.map((mapping) => (
+                        <tr key={mapping.id}>
+                          <td>{mapping.shopifyTitle}</td>
+                          <td>{mapping.shopifySku || '—'}</td>
+                          <td>
+                            <input
+                              className="form-input"
+                              style={{ minWidth: '120px' }}
+                              value={mappingEdits[mapping.id]?.qboItemId ?? mapping.qboItemId ?? ''}
+                              onChange={(e) =>
+                                setMappingEdits((prev) => ({
+                                  ...prev,
+                                  [mapping.id]: {
+                                    ...prev[mapping.id],
+                                    qboItemId: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="form-input"
+                              style={{ minWidth: '180px' }}
+                              value={mappingEdits[mapping.id]?.qboItemName ?? mapping.qboItemName ?? ''}
+                              onChange={(e) =>
+                                setMappingEdits((prev) => ({
+                                  ...prev,
+                                  [mapping.id]: {
+                                    ...prev[mapping.id],
+                                    qboItemName: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          </td>
+                          <td>
+                            <button className="btn-action" onClick={() => saveMapping(mapping.id)}>Save</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
             </>
           ) : null}
 

@@ -917,6 +917,13 @@
 }
 
 .sidebar-nav .nav-item:nth-child(4) .nav-icon {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+.sidebar-nav .nav-item:nth-child(5) .nav-icon {
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
   border-radius: 6px;
