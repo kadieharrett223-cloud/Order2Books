@@ -494,36 +494,64 @@ function App() {
     const status = String(sync.syncStatus || '').toLowerCase();
     return status && status !== 'synced' && status !== 'success';
   }).length;
+  const disconnectedCount = settings.qboConnected ? 0 : 1;
   const lastSync = syncs[0]?.syncedAt || null;
-  const firstFailedSync = syncs.find((sync) => String(sync.syncStatus || '').toLowerCase().includes('fail'));
-
-  const dashboardOrdersSynced = demoMode ? 100 : syncedOrdersCount;
-  const dashboardInvoicesCreated = demoMode ? 100 : invoiceCount;
-  const dashboardSyncErrors = demoMode ? 8 : syncErrorCount;
-  const dashboardAttentionCount = demoMode ? 20 : attentionCount;
-  const dashboardLastSync = demoMode ? '1 min ago' : formatRelativeTime(lastSync);
-  const dashboardDomain = settings.shopifyDomain || 'demo-books.myshopify.com';
-  const syncErrorOrderLabel = firstFailedSync?.shopifyOrderName || '#1005';
-  const syncErrorTimeLabel = firstFailedSync?.syncedAt ? formatRelativeTime(firstFailedSync.syncedAt) : '2 min ago';
-  const syncErrorMessage = firstFailedSync?.error || 'Error: QuickBooks rejected invoice: missing item "Blue T-Shirt"';
+  const recentSyncCount = syncs.filter((sync) => {
+    if (!sync.syncedAt) return false;
+    return Date.now() - new Date(sync.syncedAt).getTime() <= 24 * 60 * 60 * 1000;
+  }).length;
+  const recentInvoiceCount = syncs.filter((sync) => {
+    if (!sync.syncedAt || !sync.qboInvoiceId) return false;
+    return Date.now() - new Date(sync.syncedAt).getTime() <= 24 * 60 * 60 * 1000;
+  }).length;
+  const recentActivity = logs.slice(0, 4);
+  const recentTableSyncs = syncs.slice(0, 5);
 
   return (
     <div className="app">
-      <div className="app-container">
+      {/* Top Header */}
+      <header className="top-header">
+        <div className="header-left">
+          <h1 className="app-title">Order2Books <span className="title-light">Dashboard</span></h1>
+        </div>
+        <div className="header-actions">
+          {showStarterOrdersBadge ? (
+            <button className="starter-orders-tab" onClick={() => setActivePage('settings')}>
+              Auto-invoice left: {remainingOrdersThisMonth} / {monthlyLimit}
+            </button>
+          ) : null}
+          <button className="btn-secondary" onClick={() => setActivePage('syncLog')}>
+            📊 Activity
+          </button>
+          <button className="btn-secondary" onClick={refreshAppData}>
+            {demoMode ? '⏱ Auto refresh: 5 min' : '🔵 Refresh'}
+          </button>
+          <button
+            className={`btn-upgrade ${showUpgradeWarning ? 'btn-upgrade-warning' : ''}`}
+            onClick={() => setShowUpgradePanel((value) => !value)}
+          >
+            ⬆ Upgrade
+          </button>
+          <button className="btn-primary" onClick={() => setActivePage('settings')}>
+            {demoMode ? 'Preview Mode' : 'Connections'}
+          </button>
+        </div>
+      </header>
+
+      <div className="main-layout">
         {/* Sidebar */}
         <aside className="sidebar">
-          <div className="sidebar-brand">Order2Books Dashboard</div>
           <nav className="sidebar-nav">
-            <button className={`nav-item ${activePage === 'mapping' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'mapping' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('mapping')}>
-              <span className="nav-icon">◻</span>
-              <span className="nav-label">Mapping</span>
-            </button>
             <button className={`nav-item ${activePage === 'dashboard' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'dashboard' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('dashboard')}>
-              <span className="nav-icon">◉</span>
+              <span className="nav-icon">🏠</span>
               <span className="nav-label">Dashboard</span>
             </button>
+            <button className={`nav-item ${activePage === 'mapping' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'mapping' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('mapping')}>
+              <span className="nav-icon">🧩</span>
+              <span className="nav-label">Mapping</span>
+            </button>
             <button className={`nav-item ${activePage === 'syncLog' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'syncLog' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('syncLog')}>
-              <span className="nav-icon">⌁</span>
+              <span className="nav-icon">📊</span>
               <span className="nav-label">Sync Log</span>
             </button>
             <button className={`nav-item ${activePage === 'settings' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'settings' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('settings')}>
@@ -531,11 +559,11 @@ function App() {
               <span className="nav-label">Settings</span>
             </button>
             <button className={`nav-item ${activePage === 'help' ? 'active' : ''}`} onClick={() => setActivePage('help')}>
-              <span className="nav-icon">?</span>
+              <span className="nav-icon">❓</span>
               <span className="nav-label">Help</span>
             </button>
             <button className="nav-item" onClick={startTutorial}>
-              <span className="nav-icon">▶</span>
+              <span className="nav-icon">🎓</span>
               <span className="nav-label">Tutorial</span>
             </button>
           </nav>
@@ -547,182 +575,246 @@ function App() {
           </div>
         </aside>
 
-        <div className="main-content">
-          {/* Top Header */}
-          <header className="top-header">
-            <div className="header-actions">
-              {showStarterOrdersBadge ? (
-                <button className="header-pill" onClick={() => setActivePage('settings')}>
-                  Auto-invoice left: {remainingOrdersThisMonth} / {monthlyLimit}
-                </button>
-              ) : (
-                <div className="header-pill">Auto-invoice left: 100 / 100</div>
-              )}
-              <button className="header-pill" onClick={() => setActivePage('syncLog')}>
-                Activity
-              </button>
-              <button className="header-pill" onClick={refreshAppData}>
-                Auto refresh: 5 min
-              </button>
-              <button
-                className={`header-pill header-pill-upgrade ${showUpgradeWarning ? 'btn-upgrade-warning' : ''}`}
-                onClick={() => setShowUpgradePanel((value) => !value)}
-              >
-                Upgrade Mode
-              </button>
-              <button className="header-primary-button" onClick={refreshAppData}>
-                Sync Now
-              </button>
-            </div>
-          </header>
-
-          {/* Main Content */}
-          <main className={`content page-${activePage}`}>
+        {/* Main Content */}
+        <main className="content">
           {demoMode ? (
             <div className="demo-notice">Demo data only, install on Shopify to use.</div>
           ) : null}
 
-          {activePage !== 'dashboard' ? (
-            <>
-              <div className="page-header">
-                <h2 className="page-title">
-                  {activePage === 'settings' && 'Settings'}
-                  {activePage === 'mapping' && 'Product Mapping'}
-                  {activePage === 'help' && 'Help'}
-                  {activePage === 'syncLog' && 'Sync Log'}
-                </h2>
-                <p className="page-subtitle">
-                  {activePage === 'syncLog' && 'Track sync events, webhook outcomes, and retry history'}
-                  {activePage === 'settings' && 'Manage plan, defaults, and integration preferences'}
-                  {activePage === 'mapping' && 'Review auto-mapped products and fix items needing attention'}
-                  {activePage === 'help' && 'Quick links and support guidance for Order2Books'}
-                </p>
-              </div>
-              <div className="page-divider"></div>
-            </>
-          ) : null}
+          <div className="page-header">
+            <h2 className="page-title">
+              {activePage === 'dashboard' && 'OrderBooks Dashboard'}
+              {activePage === 'settings' && 'Settings'}
+              {activePage === 'mapping' && 'Product Mapping'}
+              {activePage === 'help' && 'Help'}
+            </h2>
+            <p className="page-subtitle">
+              {activePage === 'dashboard' && 'Monitor sync health between Shopify and QuickBooks'}
+              {activePage === 'syncLog' && 'Track sync events, webhook outcomes, and retry history'}
+              {activePage === 'settings' && 'Manage plan, defaults, and integration preferences'}
+              {activePage === 'mapping' && 'Review auto-mapped products and fix items needing attention'}
+              {activePage === 'help' && 'Quick links and support guidance for OrderBooks'}
+            </p>
+          </div>
+          <div className="page-divider"></div>
 
           {activePage === 'dashboard' ? (
-            <div className="dashboard-stack">
-              <section className="setup-banner">
-                <div className="setup-banner-main">
-                  <div>
-                    <p className="setup-banner-label">New!</p>
-                    <h3 className="setup-banner-title">Let’s complete your setup to start syncing Shopify orders with QuickBooks.</h3>
-                  </div>
-                  <button className="setup-banner-cta" onClick={() => setActivePage('settings')}>Complete Setup</button>
-                </div>
-                <div className="setup-steps" aria-label="Setup progress">
-                  <span className="setup-step setup-step-complete"><span className="setup-step-icon">✓</span>Connect Shopify</span>
-                  <span className="setup-step-arrow">→</span>
-                  <span className="setup-step setup-step-complete"><span className="setup-step-icon">✓</span>Connect QuickBooks</span>
-                  <span className="setup-step-arrow">→</span>
-                  <span className="setup-step setup-step-current"><span className="setup-step-icon">●</span>Run Discovery</span>
-                  <span className="setup-step-arrow">→</span>
-                  <span className="setup-step setup-step-pending"><span className="setup-step-icon">○</span>Start Syncing</span>
-                </div>
-              </section>
-
-              <div className="dashboard-heading">
-                <h2 className="page-title">Order2Books Dashboard</h2>
-                <p className="page-subtitle">Monitor sync health between Shopify and QuickBooks</p>
+            <>
+          {/* Stats Cards */}
+          <div className="stats-grid">
+            <div className="stat-card stat-card-blue">
+              <div className="stat-header">
+                <div className="stat-icon">📦</div>
+                <div className="stat-label">Orders Synced</div>
               </div>
-
-              <div className="stats-grid">
-                <div className="stat-card stat-card-blue">
-                  <div className="stat-header">
-                    <div className="stat-icon">📦</div>
-                    <div className="stat-label">Orders Synced</div>
-                  </div>
-                  <div className="stat-number">{syncsLoading ? '…' : dashboardOrdersSynced}</div>
-                  <div className="stat-change">100 sample invoices synced</div>
-                </div>
-
-                <div className="stat-card stat-card-green">
-                  <div className="stat-header">
-                    <div className="stat-icon">🧾</div>
-                    <div className="stat-label">Invoices Created</div>
-                  </div>
-                  <div className="stat-number">{syncsLoading ? '…' : dashboardInvoicesCreated}</div>
-                  <div className="stat-change">100 sample invoice history</div>
-                </div>
-
-                <div className="stat-card stat-card-red">
-                  <div className="stat-header">
-                    <div className="stat-icon">⚠</div>
-                    <div className="stat-label">Sync Errors</div>
-                  </div>
-                  <div className="stat-number">{syncsLoading ? '…' : dashboardSyncErrors}</div>
-                  <div className="stat-change">{dashboardAttentionCount} need attention</div>
-                </div>
-
-                <div className="stat-card stat-card-purple">
-                  <div className="stat-header">
-                    <div className="stat-icon">🕐</div>
-                    <div className="stat-label">Last Sync</div>
-                  </div>
-                  <div className="stat-number-small">{dashboardLastSync}</div>
-                  <div className="stat-change">Sample timeline</div>
-                </div>
-              </div>
-
-              <div className="dashboard-two-column">
-                <section className="section-card">
-                  <h3 className="section-title">Connected Accounts</h3>
-                  <div className="connected-account-row">
-                    <div className="account-logo shopify-logo">🛍</div>
-                    <div className="account-info">
-                      <div className="account-name">{dashboardDomain}</div>
-                      <div className="account-status connected">Connected</div>
-                      <div className="account-meta">Sample Shopify store preview</div>
-                    </div>
-                    <div className="connected-badge">Connected</div>
-                  </div>
-                </section>
-
-                <section className="section-card sync-errors-card">
-                  <h3 className="section-title">Sync Errors</h3>
-                  <div className="sync-error-item">
-                    <div className="sync-error-title">Order {syncErrorOrderLabel} Sync Failed</div>
-                    <div className="sync-error-message">{syncErrorMessage}</div>
-                    <div className="sync-error-footer">
-                      <span className="sync-error-time">{syncErrorTimeLabel}</span>
-                      <button className="sync-log-link" onClick={() => setActivePage('syncLog')}>See Sync Log</button>
-                    </div>
-                  </div>
-                  <button className="fix-errors-button" onClick={() => setActivePage('syncLog')}>
-                    Fix Sync Errors
-                  </button>
-                </section>
-              </div>
-
-              <section className="section-card">
-                <h3 className="section-title">Sync Health</h3>
-                <div className="sync-health-list">
-                  <div className="sync-health-row">
-                    <div className="sync-health-left">
-                      <span className="health-check">✓</span>
-                      <span>Shopify account connected</span>
-                    </div>
-                    <span className="sync-health-chevron">›</span>
-                  </div>
-                  <div className="sync-health-row">
-                    <div className="sync-health-left">
-                      <span className="health-check">✓</span>
-                      <span>QuickBooks account connected</span>
-                    </div>
-                    <span className="sync-health-chevron">›</span>
-                  </div>
-                  <div className="sync-health-row">
-                    <div className="sync-health-left">
-                      <span className="health-check">✓</span>
-                      <span>Automatic sync active</span>
-                    </div>
-                    <span className="sync-health-chevron">›</span>
-                  </div>
-                </div>
-              </section>
+              <div className="stat-number">{syncsLoading ? '…' : syncedOrdersCount}</div>
+              <div className="stat-change positive">{demoMode ? '100 sample invoices synced' : `+${recentSyncCount} in last 24h`}</div>
             </div>
+
+            <div className="stat-card stat-card-green">
+              <div className="stat-header">
+                <div className="stat-icon">📄</div>
+                <div className="stat-label">Invoices Created</div>
+              </div>
+              <div className="stat-number">{syncsLoading ? '…' : invoiceCount}</div>
+              <div className="stat-change positive">{demoMode ? 'Large sample invoice history' : `+${recentInvoiceCount} in last 24h`}</div>
+            </div>
+
+            <div className="stat-card stat-card-red">
+              <div className="stat-header">
+                <div className="stat-icon">⚠</div>
+                <div className="stat-label">Sync Errors</div>
+              </div>
+              <div className="stat-number">{syncsLoading ? '…' : syncErrorCount}</div>
+              <div className="stat-change negative">{attentionCount} need attention</div>
+            </div>
+
+            <div className="stat-card stat-card-purple">
+              <div className="stat-header">
+                <div className="stat-icon">🕐</div>
+                <div className="stat-label">Last Sync</div>
+              </div>
+              <div className="stat-number-small">{formatRelativeTime(lastSync)}</div>
+              <div className="stat-change">{demoMode ? 'Sample timeline' : 'Live timeline'}</div>
+            </div>
+          </div>
+
+          {/* Connected Accounts Section */}
+          <section className="section-card">
+            <h3 className="section-title">Connected Accounts</h3>
+            <div className="connected-accounts">
+              <div className="account-card">
+                <div className="account-logo shopify-logo">🛍️</div>
+                <div className="account-info">
+                  <div className="account-name">{settings.shopifyDomain || 'No Shopify store connected'}</div>
+                  <div className={`account-status ${settings.shopifyConnected ? 'connected' : 'disconnected'}`}>
+                    {settings.shopifyConnected ? '✓ Connected' : '✕ Not connected'}
+                  </div>
+                  <div className="account-meta">{demoMode ? 'Sample Shopify store preview' : 'Live Shopify connection status'}</div>
+                </div>
+              </div>
+
+              <div className="account-arrow">→</div>
+
+              <div className="account-card">
+                <div className="account-logo qb-logo">🟢</div>
+                <div className="account-info">
+                  <div className="account-name">{settings.qboCompanyName || 'QuickBooks Online'}</div>
+                  <div className={`account-status ${settings.qboConnected ? 'connected' : 'disconnected'}`}>
+                    {settings.qboConnected ? '✓ Connected' : '✕ Disconnected'}
+                  </div>
+                  <div className="account-meta">{demoMode ? 'Sample QuickBooks connection preview' : 'Live QuickBooks connection status'}</div>
+                </div>
+                <button
+                  className="btn-connect"
+                  disabled={demoMode}
+                  onClick={() => {
+                    if (!demoMode) {
+                      window.location.href = '/api/auth/qbo/start';
+                    }
+                  }}
+                >
+                  {demoMode ? 'Install to connect' : settings.qboConnected ? 'Connected' : 'Connect'}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Sync Activity Section */}
+          <section className="section-card">
+            <h3 className="section-title">Sync Health</h3>
+            
+            {/* Sync Health Metrics */}
+            <div className="sync-health-bar">
+              <div className="health-pill">
+                <span className="health-icon green">✓</span>
+                <span className="health-label">Healthy syncs</span>
+                <strong className="health-value">{syncedOrdersCount}</strong>
+              </div>
+              <div className="health-pill">
+                <span className="health-icon orange">⚠</span>
+                <span className="health-label">Needs attention</span>
+                <strong className="health-value">{attentionCount}</strong>
+              </div>
+              <div className="health-pill">
+                <span className="health-icon red">⛔</span>
+                <span className="health-label">Disconnected</span>
+                <strong className="health-value">{disconnectedCount}</strong>
+              </div>
+              <div className="health-pill">
+                <span className="health-icon gray">⏱</span>
+                <span className="health-label">Dashboard mode</span>
+                <strong className="health-value">{demoMode ? 'Demo data' : 'Live data'}</strong>
+              </div>
+            </div>
+
+            {/* Order Search */}
+            <div className="search-section">
+              <h4 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '12px', color: '#0f172a' }}>Search by Shopify Order #</h4>
+              <div className="search-box">
+                <input 
+                  type="text" 
+                  className="search-input" 
+                  placeholder="Enter Shopify Order ID (e.g., 1234567890)" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <button className="btn-search" onClick={handleSearch}>Search</button>
+              </div>
+              {searchResult && (
+                <div className="search-result">
+                  {searchResult.error ? (
+                    <div className="search-error">{searchResult.error}</div>
+                  ) : (
+                    <div className="search-success">
+                      <strong>Found:</strong> Shopify Order #{searchResult.shopifyOrderId || searchResult.shopifyOrderName} → QuickBooks Invoice #{searchResult.qboInvoiceId || 'Not synced yet'}
+                      <br />
+                      <span style={{ fontSize: '13px', color: '#64748b' }}>Status: {searchResult.syncStatus}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Sync Table */}
+            <div className="table-container">
+              <table className="sync-table">
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Invoice</th>
+                    <th>Status</th>
+                    <th>Time</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentTableSyncs.length === 0 ? (
+                    <tr>
+                      <td colSpan="5">{syncsLoading ? 'Loading sync activity...' : 'No order syncs found yet.'}</td>
+                    </tr>
+                  ) : recentTableSyncs.map((sync) => (
+                    <tr key={sync.shopifyOrderId}>
+                      <td>
+                        <span className="order-id">{sync.shopifyOrderName || `#${sync.shopifyOrderId}`}</span>
+                        <span className="invoice-id-mini">{sync.qboInvoiceId || '(pending)'}</span>
+                      </td>
+                      <td className="invoice-mapping">{`${sync.shopifyOrderName || `#${sync.shopifyOrderId}`} → ${sync.qboInvoiceId || '(pending)'}`}</td>
+                      <td>
+                        <span className={`status-badge ${getStatusBadgeClass(sync.syncStatus)}`}>
+                          {sync.syncStatus || '—'}
+                        </span>
+                      </td>
+                      <td>{formatRelativeTime(sync.syncedAt)}</td>
+                      <td>
+                        <button className="btn-action" onClick={() => { setActivePage('syncLog'); setSearchQuery(String(sync.shopifyOrderId || '')); }}>
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Recent Activity */}
+          <section className="section-card">
+            <div className="section-header">
+              <h3 className="section-title">Recent Activity</h3>
+              <button className="btn-more">⋯</button>
+            </div>
+            <div className="table-container">
+              <table className="sync-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Event</th>
+                    <th>Status</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentActivity.length === 0 ? (
+                    <tr>
+                      <td colSpan="4">No recent activity yet.</td>
+                    </tr>
+                  ) : recentActivity.map((log) => (
+                    <tr key={log.id}>
+                      <td>{formatRelativeTime(log.created_at)}</td>
+                      <td>{log.event_type || '—'}</td>
+                      <td>
+                        <span className={`status-badge ${getStatusBadgeClass(log.status)}`}>{log.status || '—'}</span>
+                      </td>
+                      <td>{log.message || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+            </>
           ) : null}
 
           {activePage === 'syncLog' ? (
@@ -734,19 +826,19 @@ function App() {
                 </button>
               </div>
               
-              <div className="synclog-info-card">
-                <p className="synclog-info-title">How Order Import Works</p>
-                <p>
+              <div style={{ marginBottom: '20px', padding: '14px', background: 'rgba(79, 172, 254, 0.08)', borderLeft: '4px solid #4facfe', borderRadius: '8px', fontSize: '13px', color: '#0f172a', lineHeight: '1.5' }}>
+                <p style={{ margin: '0 0 8px 0', fontWeight: '600' }}>💡 How Order Import Works</p>
+                <p style={{ margin: '0' }}>
                   Paid orders from Shopify are automatically imported into QuickBooks. If QB isn't connected, orders are saved as "pending" and will sync once you connect QB in Settings. Use the search below to look up orders by their Shopify ID.
                 </p>
-                <p>
+                <p style={{ margin: '8px 0 0 0' }}>
                   {demoMode ? 'Preview mode includes a large sample invoice history and refreshes automatically every 5 minutes.' : 'Orders sync automatically and the dashboard refreshes every 5 minutes.'}
                 </p>
               </div>
               
               {/* Search Section */}
               <div className="search-section">
-                <h4 className="panel-subtitle">Find Order by Shopify #</h4>
+                <h4 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '12px', color: '#0f172a' }}>Find Order by Shopify #</h4>
                 <div className="search-box">
                   <input 
                     type="text" 
@@ -766,14 +858,14 @@ function App() {
                       <div className="search-success">
                         <strong>✓ Found:</strong> Shopify Order #{searchResult.shopifyOrderId || searchResult.shopifyOrderName} → QB Invoice #{searchResult.qboInvoiceId || '(pending)'}
                         <br />
-                        <span className="search-status-line">Status: <strong>{searchResult.syncStatus}</strong></span>
+                        <span style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>Status: <strong>{searchResult.syncStatus}</strong></span>
                       </div>
                     )}
                   </div>
                 )}
               </div>
               
-              <h4 className="panel-subtitle panel-subtitle-spaced">Recent Activity</h4>
+              <h4 style={{ fontSize: '14px', fontWeight: '600', marginTop: '24px', marginBottom: '12px', color: '#0f172a' }}>Recent Activity</h4>
               <div className="table-container">
                 <table className="sync-table">
                   <thead>
@@ -1077,31 +1169,42 @@ function App() {
                         <tr key={mapping.id}>
                           <td>{mapping.shopifyTitle}</td>
                           <td>{mapping.shopifySku || '—'}</td>
-                          <td colSpan="2" className="mapping-search-cell">
-                            <div className="mapping-search-wrap">
+                          <td colSpan="2" style={{ position: 'relative' }}>
+                            <div style={{ position: 'relative' }}>
                               <input
-                                className="form-input mapping-search-input"
+                                className="form-input"
+                                style={{ width: '100%', minWidth: '250px' }}
                                 placeholder="Search QuickBooks items..."
                                 value={mappingItemSearch[mapping.id] ?? ''}
                                 onChange={(e) => searchQboItems(mapping.id, e.target.value)}
                               />
                               {mappingItemSearchResults[mapping.id]?.length > 0 && (
-                                <div className="mapping-search-results">
+                                <div style={{
+                                  position: 'absolute', top: '100%', left: 0, right: 0, 
+                                  background: 'white', border: '1px solid #ddd', 
+                                  borderRadius: '4px', zIndex: 1000, maxHeight: '200px', 
+                                  overflowY: 'auto', marginTop: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                }}>
                                   {mappingItemSearchResults[mapping.id].map((item) => (
                                     <div
                                       key={item.id}
                                       onClick={() => selectQboItem(mapping.id, item)}
-                                      className="mapping-search-option"
+                                      style={{
+                                        padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #eee',
+                                        hover: { background: '#f5f5f5' }
+                                      }}
+                                      onMouseEnter={(e) => e.target.style.background = '#f5f5f5'}
+                                      onMouseLeave={(e) => e.target.style.background = 'transparent'}
                                     >
                                       <strong>{item.name}</strong>
-                                      {item.sku && <span className="mapping-search-sku">({item.sku})</span>}
-                                      <div className="mapping-search-id">ID: {item.id}</div>
+                                      {item.sku && <span style={{ color: '#999', marginLeft: '8px', fontSize: '12px' }}>({item.sku})</span>}
+                                      <div style={{ fontSize: '11px', color: '#999' }}>ID: {item.id}</div>
                                     </div>
                                   ))}
                                 </div>
                               )}
                               {mappingEdits[mapping.id]?.qboItemId && (
-                                <div className="mapping-selected-item">
+                                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
                                   Selected: <strong>{mappingEdits[mapping.id]?.qboItemName}</strong> (#{mappingEdits[mapping.id]?.qboItemId})
                                 </div>
                               )}
@@ -1135,8 +1238,7 @@ function App() {
               </div>
             </section>
           ) : null}
-          </main>
-        </div>
+        </main>
       </div>
 
         {tutorialActive && TUTORIAL_STEPS[tutorialStep] && (
