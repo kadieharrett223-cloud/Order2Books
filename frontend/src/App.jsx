@@ -509,35 +509,7 @@ function App() {
 
   return (
     <div className="app">
-      {/* Top Header */}
-      <header className="top-header">
-        <div className="header-actions">
-          {showStarterOrdersBadge ? (
-            <button className="header-pill" onClick={() => setActivePage('settings')}>
-              Auto-invoice left: {remainingOrdersThisMonth} / {monthlyLimit}
-            </button>
-          ) : (
-            <div className="header-pill">Auto-invoice left: 100 / 100</div>
-          )}
-          <button className="header-pill" onClick={() => setActivePage('syncLog')}>
-            Activity
-          </button>
-          <button className="header-pill" onClick={refreshAppData}>
-            Auto refresh: 5 min
-          </button>
-          <button
-            className={`header-pill header-pill-upgrade ${showUpgradeWarning ? 'btn-upgrade-warning' : ''}`}
-            onClick={() => setShowUpgradePanel((value) => !value)}
-          >
-            Upgrade Mode
-          </button>
-          <button className="header-primary-button" onClick={refreshAppData}>
-            Sync Now
-          </button>
-        </div>
-      </header>
-
-      <div className="main-layout">
+      <div className="app-container">
         {/* Sidebar */}
         <aside className="sidebar">
           <div className="sidebar-brand">Order2Books Dashboard</div>
@@ -575,8 +547,37 @@ function App() {
           </div>
         </aside>
 
-        {/* Main Content */}
-        <main className={`content page-${activePage}`}>
+        <div className="main-content">
+          {/* Top Header */}
+          <header className="top-header">
+            <div className="header-actions">
+              {showStarterOrdersBadge ? (
+                <button className="header-pill" onClick={() => setActivePage('settings')}>
+                  Auto-invoice left: {remainingOrdersThisMonth} / {monthlyLimit}
+                </button>
+              ) : (
+                <div className="header-pill">Auto-invoice left: 100 / 100</div>
+              )}
+              <button className="header-pill" onClick={() => setActivePage('syncLog')}>
+                Activity
+              </button>
+              <button className="header-pill" onClick={refreshAppData}>
+                Auto refresh: 5 min
+              </button>
+              <button
+                className={`header-pill header-pill-upgrade ${showUpgradeWarning ? 'btn-upgrade-warning' : ''}`}
+                onClick={() => setShowUpgradePanel((value) => !value)}
+              >
+                Upgrade Mode
+              </button>
+              <button className="header-primary-button" onClick={refreshAppData}>
+                Sync Now
+              </button>
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main className={`content page-${activePage}`}>
           {demoMode ? (
             <div className="demo-notice">Demo data only, install on Shopify to use.</div>
           ) : null}
@@ -602,34 +603,23 @@ function App() {
           ) : null}
 
           {activePage === 'dashboard' ? (
-            <>
+            <div className="dashboard-stack">
               <section className="setup-banner">
-                <div>
-                  <p className="setup-banner-label">New!</p>
-                  <h3 className="setup-banner-title">Let’s complete your setup to start syncing Shopify orders with QuickBooks.</h3>
+                <div className="setup-banner-main">
+                  <div>
+                    <p className="setup-banner-label">New!</p>
+                    <h3 className="setup-banner-title">Let’s complete your setup to start syncing Shopify orders with QuickBooks.</h3>
+                  </div>
+                  <button className="setup-banner-cta" onClick={() => setActivePage('settings')}>Complete Setup</button>
                 </div>
-                <button className="setup-banner-cta" onClick={() => setActivePage('settings')}>Complete Setup</button>
-              </section>
-
-              <section className="setup-steps">
-                <div className="setup-step setup-step-complete">
-                  <span className="setup-step-icon">✓</span>
-                  <span>Connect Shopify</span>
-                </div>
-                <span className="setup-step-arrow">→</span>
-                <div className="setup-step setup-step-complete">
-                  <span className="setup-step-icon">✓</span>
-                  <span>Connect QuickBooks</span>
-                </div>
-                <span className="setup-step-arrow">→</span>
-                <div className="setup-step setup-step-current">
-                  <span className="setup-step-icon">●</span>
-                  <span>Run Discovery Steps</span>
-                </div>
-                <span className="setup-step-arrow">→</span>
-                <div className="setup-step setup-step-pending">
-                  <span className="setup-step-icon">○</span>
-                  <span>Start Syncing Orders</span>
+                <div className="setup-steps" aria-label="Setup progress">
+                  <span className="setup-step setup-step-complete"><span className="setup-step-icon">✓</span>Connect Shopify</span>
+                  <span className="setup-step-arrow">→</span>
+                  <span className="setup-step setup-step-complete"><span className="setup-step-icon">✓</span>Connect QuickBooks</span>
+                  <span className="setup-step-arrow">→</span>
+                  <span className="setup-step setup-step-current"><span className="setup-step-icon">●</span>Run Discovery</span>
+                  <span className="setup-step-arrow">→</span>
+                  <span className="setup-step setup-step-pending"><span className="setup-step-icon">○</span>Start Syncing</span>
                 </div>
               </section>
 
@@ -732,7 +722,7 @@ function App() {
                   </div>
                 </div>
               </section>
-            </>
+            </div>
           ) : null}
 
           {activePage === 'syncLog' ? (
@@ -1145,7 +1135,8 @@ function App() {
               </div>
             </section>
           ) : null}
-        </main>
+          </main>
+        </div>
       </div>
 
         {tutorialActive && TUTORIAL_STEPS[tutorialStep] && (

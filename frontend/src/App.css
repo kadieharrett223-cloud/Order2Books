@@ -2364,3 +2364,179 @@
     padding: 10px 12px;
   }
 }
+
+/* ===== Dashboard layout correction ===== */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  flex: 0 0 240px;
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f6f7f9;
+}
+
+.top-header {
+  height: auto;
+  min-height: 60px;
+  background: #ffffff;
+  border-bottom: 1px solid #e3e3e3;
+  padding: 12px 24px;
+}
+
+.content {
+  flex: 1;
+  padding: 24px;
+  margin-left: 0;
+}
+
+.dashboard-stack {
+  display: grid;
+  gap: 24px;
+}
+
+.section-card,
+.stat-card {
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid #e3e3e3;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.stats-grid,
+.dashboard-two-column {
+  gap: 24px;
+  margin: 0;
+}
+
+.setup-banner {
+  background: #f6f7f9;
+  border: 1px solid #e3e3e3;
+  border-left: 4px solid #5c6ac4;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0;
+}
+
+.setup-banner-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.setup-banner-label {
+  margin: 0 0 2px;
+  color: #5c6ac4;
+}
+
+.setup-banner-title {
+  font-size: 14px;
+  color: #334155;
+}
+
+.setup-steps {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.setup-step {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.setup-step-icon {
+  margin-right: 4px;
+}
+
+.setup-step-complete {
+  color: #15803d;
+}
+
+.setup-step-current {
+  color: #2563eb;
+}
+
+.setup-step-pending {
+  color: #64748b;
+}
+
+.setup-step-arrow {
+  color: #94a3b8;
+}
+
+.dashboard-heading,
+.page-header,
+.page-divider {
+  margin: 0;
+}
+
+.page-divider {
+  margin-top: 8px;
+}
+
+.stat-card-blue,
+.stat-card-green {
+  background: #ffffff;
+}
+
+.stat-card-red {
+  background: #fff7ed;
+}
+
+.stat-card-purple {
+  background: #f5f3ff;
+}
+
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 3px solid #4f46e5;
+  box-shadow: none;
+}
+
+.sync-error-item {
+  background: #fff4f2;
+  border: 1px solid #ffd5cc;
+}
+
+.fix-errors-button {
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .app-container {
+    display: block;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .content {
+    padding: 20px;
+  }
+
+  .setup-banner-main {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .setup-step-arrow {
+    display: none;
+  }
+}
