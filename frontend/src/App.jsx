@@ -542,13 +542,13 @@ function App() {
         {/* Sidebar */}
         <aside className="sidebar">
           <nav className="sidebar-nav">
-            <button className={`nav-item ${activePage === 'mapping' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'mapping' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('mapping')}>
-              <span className="nav-icon">🧩</span>
-              <span className="nav-label">Mapping</span>
-            </button>
             <button className={`nav-item ${activePage === 'dashboard' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'dashboard' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('dashboard')}>
               <span className="nav-icon">🏠</span>
               <span className="nav-label">Dashboard</span>
+            </button>
+            <button className={`nav-item ${activePage === 'mapping' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'mapping' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('mapping')}>
+              <span className="nav-icon">🧩</span>
+              <span className="nav-label">Mapping</span>
             </button>
             <button className={`nav-item ${activePage === 'syncLog' ? 'active' : ''} ${tutorialActive && TUTORIAL_STEPS[tutorialStep]?.navTarget === 'syncLog' ? 'tutorial-nav-highlight' : ''}`} onClick={() => setActivePage('syncLog')}>
               <span className="nav-icon">📊</span>
