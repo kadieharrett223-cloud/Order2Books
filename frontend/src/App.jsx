@@ -34,6 +34,7 @@ const DEFAULT_SETTINGS = {
   qboConnected: false,
   qboCompanyName: '',
   autoDecrementInventory: false,
+  autoCreateQboItems: true,
   isDemo: false,
 };
 
@@ -306,8 +307,7 @@ function App() {
       {/* Top Header */}
       <header className="top-header">
         <div className="header-left">
-          <img className="logo-image" src="/order2books-logo.svg" alt="Order2Books logo" />
-          <h1 className="app-title">OrderBooks <span className="title-light">Dashboard</span></h1>
+          <h1 className="app-title">Order2Books <span className="title-light">Dashboard</span></h1>
         </div>
         <div className="header-actions">
           <button className="btn-secondary" onClick={() => setActivePage('syncLog')}>
@@ -360,13 +360,7 @@ function App() {
         {/* Main Content */}
         <main className="content">
           {demoMode ? (
-            <section className="section-card" style={{ marginBottom: '20px', borderLeft: '4px solid #4facfe' }}>
-              <div className="settings-list">
-                <div><strong>Preview mode:</strong> Sample store, invoices, and QuickBooks data are shown before install.</div>
-                <div><strong>Live mode:</strong> Install the app in Shopify to switch this dashboard to your real store data.</div>
-                <div><strong>Auto refresh:</strong> Demo activity refreshes automatically every 5 minutes.</div>
-              </div>
-            </section>
+            <div className="demo-notice">Demo data only, install on Shopify to use.</div>
           ) : null}
 
           <div className="page-header">
@@ -781,6 +775,18 @@ function App() {
                   <section className="section-card">
                     <h3 className="section-title">Sync Options</h3>
                     <div className="settings-form">
+                      <div className="form-checkbox">
+                        <input
+                          id="autoCreateQboItems"
+                          type="checkbox"
+                          checked={settings.autoCreateQboItems}
+                          disabled={demoMode}
+                          onChange={(e) => setSettings({ ...settings, autoCreateQboItems: e.target.checked })}
+                        />
+                        <label htmlFor="autoCreateQboItems">Automatically create new QuickBooks items for unmatched Shopify products</label>
+                      </div>
+                      <p className="form-hint">Recommended. The app matches by SKU first, then name, and only falls back when creation is unavailable.</p>
+
                       <div className="form-checkbox">
                         <input
                           id="autoDecrement"

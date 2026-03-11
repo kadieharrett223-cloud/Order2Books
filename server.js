@@ -287,6 +287,11 @@ async function countInstalledShops() {
   return Number(row?.count || 0)
 }
 
+async function getAppSettingsRecord() {
+  const db = await getDb()
+  return db.get('SELECT * FROM app_settings WHERE id = 1')
+}
+
 async function getActiveInstalledShop(req) {
   const db = await getDb()
   const requestedShopDomain = String(req?.shopDomainFromSession || '').toLowerCase().trim()
@@ -403,6 +408,7 @@ function buildDemoSettings() {
     qboConnected: true,
     qboCompanyName: 'Demo QuickBooks Company',
     autoDecrementInventory: false,
+    autoCreateQboItems: true,
     isDemo: true,
   }
 }
@@ -794,6 +800,57 @@ async function qboFindItemByName(shop, name) {
   return startsWithResponse.QueryResponse?.Item?.[0] || null
 }
 
+async function qboFindIncomeAccount(shop) {
+  const queries = [
+    `select * from Account where AccountType = 'Income' and Active = true maxresults 1`,
+    `select * from Account where AccountSubType = 'SalesOfProductIncome' and Active = true maxresults 1`,
+    `select * from Account where Classification = 'Revenue' and Active = true maxresults 1`,
+  ]
+
+  for (const query of queries) {
+    const response = await qboQuery(shop, query)
+    const account = response.QueryResponse?.Account?.[0] || null
+
+    if (account?.Id) {
+      return account
+    }
+  }
+
+  return null
+}
+
+function buildQboItemName(line) {
+  const title = String(line.title || 'Shopify Item').trim() || 'Shopify Item'
+  const skuSuffix = line.sku ? ` (${line.sku})` : ''
+  return `${title}${skuSuffix}`.slice(0, 100)
+}
+
+async function qboCreateItemFromShopifyLine(shop, line) {
+  const incomeAccount = await qboFindIncomeAccount(shop)
+  if (!incomeAccount?.Id) {
+    throw new Error('No QuickBooks income account found for automatic item creation')
+  }
+
+  const payload = {
+    Name: buildQboItemName(line),
+    Sku: line.sku || undefined,
+    Type: 'NonInventory',
+    IncomeAccountRef: { value: incomeAccount.Id },
+    Description: line.title || 'Created from Shopify product sync',
+    Active: true,
+    Taxable: false,
+  }
+
+  const response = await qboRequest({
+    shop,
+    method: 'POST',
+    path: `/v3/company/${shop.qbo_realm_id}/item?minorversion=${QBO_MINOR_VERSION}`,
+    body: payload,
+  })
+
+  return response.Item || null
+}
+
 async function qboResolveItemRef(shop, line) {
   const mappedBySku = await qboFindItemBySku(shop, line.sku)
   if (mappedBySku?.Id) {
@@ -812,6 +869,25 @@ async function qboResolveItemRef(shop, line) {
       name: mappedByName.Name,
       mapped: true,
       source: 'name',
+    }
+  }
+
+  const settings = await getAppSettingsRecord()
+  const autoCreateQboItems = settings?.auto_create_qbo_items !== 0
+
+  if (autoCreateQboItems) {
+    try {
+      const createdItem = await qboCreateItemFromShopifyLine(shop, line)
+      if (createdItem?.Id) {
+        return {
+          value: createdItem.Id,
+          name: createdItem.Name,
+          mapped: true,
+          source: 'auto-created',
+        }
+      }
+    } catch {
+      // Fall back to misc item when automatic creation is unavailable.
     }
   }
 
@@ -1512,6 +1588,7 @@ app.get('/api/settings', async (req, res) => {
       qboConnected: Boolean(activeShop?.qbo_access_token && activeShop?.qbo_realm_id),
       qboCompanyName: activeShop?.qbo_realm_id ? `QuickBooks realm ${activeShop.qbo_realm_id}` : '',
       autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
+      autoCreateQboItems: settings?.auto_create_qbo_items !== 0,
       isDemo: false,
     },
   })
@@ -1522,7 +1599,7 @@ app.post('/api/settings', async (req, res) => {
     return res.status(403).json({ error: 'Install the app in Shopify to save live settings.' })
   }
 
-  const { shopifyDomain, shopifyApiKey, autoDecrementInventory } = req.body
+  const { shopifyDomain, shopifyApiKey, autoDecrementInventory, autoCreateQboItems } = req.body
 
   const db = await getDb()
   
@@ -1534,19 +1611,21 @@ app.post('/api/settings', async (req, res) => {
        SET shopify_domain = ?, 
            shopify_api_key = ?,
            auto_decrement_inventory = ?,
+           auto_create_qbo_items = ?,
            updated_at = datetime('now')
        WHERE id = 1`,
       [
         shopifyDomain || existing.shopify_domain,
         shopifyApiKey && shopifyApiKey !== '***' ? shopifyApiKey : existing.shopify_api_key,
         autoDecrementInventory ? 1 : 0,
+        autoCreateQboItems === false ? 0 : 1,
       ],
     )
   } else {
     await db.run(
-      `INSERT INTO app_settings (id, shopify_domain, shopify_api_key, auto_decrement_inventory)
-       VALUES (1, ?, ?, ?)`,
-      [shopifyDomain || '', shopifyApiKey || '', autoDecrementInventory ? 1 : 0],
+      `INSERT INTO app_settings (id, shopify_domain, shopify_api_key, auto_decrement_inventory, auto_create_qbo_items)
+       VALUES (1, ?, ?, ?, ?)`,
+      [shopifyDomain || '', shopifyApiKey || '', autoDecrementInventory ? 1 : 0, autoCreateQboItems === false ? 0 : 1],
     )
   }
 
