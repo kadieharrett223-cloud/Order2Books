@@ -155,6 +155,14 @@ function App() {
     loadLogs();
   }, []);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      refreshAppData();
+    }, 5 * 60 * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const refreshPlan = async () => {
     const response = await apiFetch('/api/plan');
     if (!response.ok) return;
@@ -303,10 +311,10 @@ function App() {
         </div>
         <div className="header-actions">
           <button className="btn-secondary" onClick={() => setActivePage('syncLog')}>
-            🔄 Retry ▼
+            📊 Activity
           </button>
           <button className="btn-secondary" onClick={refreshAppData}>
-            🔵 Refresh
+            {demoMode ? '⏱ Auto refresh: 5 min' : '🔵 Refresh'}
           </button>
           <button
             className={`btn-upgrade ${showUpgradeWarning ? 'btn-upgrade-warning' : ''}`}
@@ -315,7 +323,7 @@ function App() {
             ⬆ Upgrade
           </button>
           <button className="btn-primary" onClick={() => setActivePage('settings')}>
-            {demoMode ? 'Preview Mode' : 'Connect'}
+            {demoMode ? 'Preview Mode' : 'Connections'}
           </button>
         </div>
       </header>
@@ -356,6 +364,7 @@ function App() {
               <div className="settings-list">
                 <div><strong>Preview mode:</strong> Sample store, invoices, and QuickBooks data are shown before install.</div>
                 <div><strong>Live mode:</strong> Install the app in Shopify to switch this dashboard to your real store data.</div>
+                <div><strong>Auto refresh:</strong> Demo activity refreshes automatically every 5 minutes.</div>
               </div>
             </section>
           ) : null}
@@ -386,7 +395,7 @@ function App() {
                 <div className="stat-label">Orders Synced</div>
               </div>
               <div className="stat-number">{syncsLoading ? '…' : syncedOrdersCount}</div>
-              <div className="stat-change positive">+{recentSyncCount} in last 24h</div>
+              <div className="stat-change positive">{demoMode ? '100 sample invoices synced' : `+${recentSyncCount} in last 24h`}</div>
             </div>
 
             <div className="stat-card stat-card-green">
@@ -395,7 +404,7 @@ function App() {
                 <div className="stat-label">Invoices Created</div>
               </div>
               <div className="stat-number">{syncsLoading ? '…' : invoiceCount}</div>
-              <div className="stat-change positive">+{recentInvoiceCount} in last 24h</div>
+              <div className="stat-change positive">{demoMode ? 'Large sample invoice history' : `+${recentInvoiceCount} in last 24h`}</div>
             </div>
 
             <div className="stat-card stat-card-red">
@@ -608,6 +617,9 @@ function App() {
                 <p style={{ margin: '0 0 8px 0', fontWeight: '600' }}>💡 How Order Import Works</p>
                 <p style={{ margin: '0' }}>
                   Paid orders from Shopify are automatically imported into QuickBooks. If QB isn't connected, orders are saved as "pending" and will sync once you connect QB in Settings. Use the search below to look up orders by their Shopify ID.
+                </p>
+                <p style={{ margin: '8px 0 0 0' }}>
+                  {demoMode ? 'Preview mode includes a large sample invoice history and refreshes automatically every 5 minutes.' : 'Orders sync automatically and the dashboard refreshes every 5 minutes.'}
                 </p>
               </div>
               

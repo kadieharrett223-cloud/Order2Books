@@ -30,6 +30,7 @@ const QBO_SCOPES = process.env.QBO_SCOPES || 'com.intuit.quickbooks.accounting'
 const QBO_ENV = process.env.QBO_ENV === 'production' ? 'production' : 'sandbox'
 const QBO_MINOR_VERSION = process.env.QBO_MINOR_VERSION || '75'
 const QBO_ITEM_REF = process.env.QBO_ITEM_REF || '1'
+const QBO_MISC_ITEM_REF = process.env.QBO_MISC_ITEM_REF || QBO_ITEM_REF
 let activePlanKey = String(process.env.APP_PLAN || 'starter').toLowerCase() === 'scale' ? 'scale' : 'starter'
 const REQUIRE_SHOPIFY_SESSION = process.env.REQUIRE_SHOPIFY_SESSION === 'true'
 
@@ -315,106 +316,83 @@ async function shouldUseDemoMode(req) {
   return !activeShop
 }
 
-function buildDemoSyncs() {
+function buildDemoDataset() {
   const now = Date.now()
+  const shopDomain = 'demo-books.myshopify.com'
+  const syncs = []
+  const logs = []
 
-  return [
-    {
+  for (let index = 0; index < 120; index += 1) {
+    const orderNumber = 1100 - index
+    const orderId = String(orderNumber)
+    const invoiceId = `INV-${2100 - index}`
+    const customerId = `DEMO-CUST-${400 - index}`
+    const createdAt = new Date(now - index * 35 * 60 * 1000)
+    const status = index < 100 ? 'synced' : index < 112 ? 'processing' : 'failed'
+    const hasInvoice = status === 'synced'
+    const message =
+      status === 'synced'
+        ? `Demo invoice ${invoiceId} created for sample order #${orderId}.`
+        : status === 'processing'
+          ? `Demo order #${orderId} is queued for automatic QuickBooks sync.`
+          : `Demo sync for order #${orderId} needs review before invoice creation.`
+
+    syncs.push({
       shopId: 'demo-shop',
-      shopDomain: 'demo-books.myshopify.com',
-      shopifyOrderId: '1045',
-      shopifyOrderName: '#1045',
-      qboCustomerId: 'DEMO-CUST-204',
-      qboInvoiceId: 'INV-2045',
+      shopDomain,
+      shopifyOrderId: orderId,
+      shopifyOrderName: `#${orderId}`,
+      qboCustomerId: hasInvoice ? customerId : null,
+      qboInvoiceId: hasInvoice ? invoiceId : null,
       financialStatus: 'paid',
-      syncStatus: 'synced',
-      lastError: null,
-      syncedAt: new Date(now - 15 * 60 * 1000).toISOString(),
-    },
-    {
-      shopId: 'demo-shop',
-      shopDomain: 'demo-books.myshopify.com',
-      shopifyOrderId: '1044',
-      shopifyOrderName: '#1044',
-      qboCustomerId: null,
-      qboInvoiceId: null,
-      financialStatus: 'paid',
-      syncStatus: 'processing',
-      lastError: null,
-      syncedAt: new Date(now - 55 * 60 * 1000).toISOString(),
-    },
-    {
-      shopId: 'demo-shop',
-      shopDomain: 'demo-books.myshopify.com',
-      shopifyOrderId: '1043',
-      shopifyOrderName: '#1043',
-      qboCustomerId: null,
-      qboInvoiceId: null,
-      financialStatus: 'paid',
-      syncStatus: 'failed',
-      lastError: 'Demo sync failed: customer mapping needs review.',
-      syncedAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      shopId: 'demo-shop',
-      shopDomain: 'demo-books.myshopify.com',
-      shopifyOrderId: '1042',
-      shopifyOrderName: '#1042',
-      qboCustomerId: 'DEMO-CUST-199',
-      qboInvoiceId: 'INV-2042',
-      financialStatus: 'paid',
-      syncStatus: 'synced',
-      lastError: null,
-      syncedAt: new Date(now - 8 * 60 * 60 * 1000).toISOString(),
-    },
-  ]
+      syncStatus: status,
+      lastError: status === 'failed' ? 'Demo sync failed: sample customer mapping needs review.' : null,
+      syncedAt: createdAt.toISOString(),
+    })
+
+    logs.push({
+      id: `demo-log-${index + 1}`,
+      created_at: createdAt.toISOString(),
+      event_type: status === 'failed' ? 'retry' : 'orders/paid',
+      status: status === 'synced' ? 'success' : status,
+      shop_domain: shopDomain,
+      shopify_order_id: orderId,
+      qbo_invoice_id: hasInvoice ? invoiceId : null,
+      message,
+    })
+  }
+
+  logs.unshift({
+    id: 'demo-log-setup-shopify',
+    created_at: new Date(now - 4 * 60 * 1000).toISOString(),
+    event_type: 'shopify/oauth',
+    status: 'success',
+    shop_domain: shopDomain,
+    shopify_order_id: null,
+    qbo_invoice_id: null,
+    message: 'Demo Shopify store connected for preview mode.',
+  })
+
+  logs.unshift({
+    id: 'demo-log-setup-qbo',
+    created_at: new Date(now - 2 * 60 * 1000).toISOString(),
+    event_type: 'qbo/oauth',
+    status: 'success',
+    shop_domain: shopDomain,
+    shopify_order_id: null,
+    qbo_invoice_id: null,
+    message: 'Demo QuickBooks company connected for preview mode.',
+  })
+
+  return { syncs, logs }
+}
+
+function buildDemoSyncs() {
+  return buildDemoDataset().syncs
 }
 
 function buildDemoLogs() {
-  const now = Date.now()
-
-  return [
-    {
-      id: 'demo-log-1',
-      created_at: new Date(now - 15 * 60 * 1000).toISOString(),
-      event_type: 'orders/paid',
-      status: 'success',
-      shop_domain: 'demo-books.myshopify.com',
-      shopify_order_id: '1045',
-      qbo_invoice_id: 'INV-2045',
-      message: 'Demo invoice created for sample order #1045.',
-    },
-    {
-      id: 'demo-log-2',
-      created_at: new Date(now - 55 * 60 * 1000).toISOString(),
-      event_type: 'orders/paid',
-      status: 'processing',
-      shop_domain: 'demo-books.myshopify.com',
-      shopify_order_id: '1044',
-      qbo_invoice_id: null,
-      message: 'Demo order is waiting for QuickBooks invoice creation.',
-    },
-    {
-      id: 'demo-log-3',
-      created_at: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
-      event_type: 'retry',
-      status: 'failed',
-      shop_domain: 'demo-books.myshopify.com',
-      shopify_order_id: '1043',
-      qbo_invoice_id: null,
-      message: 'Demo retry failed because the customer record needs attention.',
-    },
-    {
-      id: 'demo-log-4',
-      created_at: new Date(now - 6 * 60 * 60 * 1000).toISOString(),
-      event_type: 'qbo/oauth',
-      status: 'success',
-      shop_domain: 'demo-books.myshopify.com',
-      shopify_order_id: null,
-      qbo_invoice_id: null,
-      message: 'Demo QuickBooks company connected for preview mode.',
-    },
-  ]
+  return buildDemoDataset().logs
 }
 
 function buildDemoSettings() {
@@ -784,6 +762,67 @@ async function qboFindCustomerByDisplayName(shop, name) {
   return response.QueryResponse?.Customer?.[0] || null
 }
 
+async function qboQuery(shop, query) {
+  return qboRequest({
+    shop,
+    method: 'GET',
+    path: `/v3/company/${shop.qbo_realm_id}/query?query=${encodeURIComponent(query)}&minorversion=${QBO_MINOR_VERSION}`,
+  })
+}
+
+async function qboFindItemBySku(shop, sku) {
+  if (!sku) return null
+
+  const query = `select * from Item where Sku = '${String(sku).replace(/'/g, "\\'")}' maxresults 1`
+  const response = await qboQuery(shop, query)
+  return response.QueryResponse?.Item?.[0] || null
+}
+
+async function qboFindItemByName(shop, name) {
+  if (!name) return null
+
+  const safeName = String(name).trim().replace(/'/g, "\\'")
+  if (!safeName) return null
+
+  const exactResponse = await qboQuery(shop, `select * from Item where Name = '${safeName}' maxresults 1`)
+  const exactItem = exactResponse.QueryResponse?.Item?.[0] || null
+  if (exactItem) {
+    return exactItem
+  }
+
+  const startsWithResponse = await qboQuery(shop, `select * from Item where Name like '${safeName}%' maxresults 1`)
+  return startsWithResponse.QueryResponse?.Item?.[0] || null
+}
+
+async function qboResolveItemRef(shop, line) {
+  const mappedBySku = await qboFindItemBySku(shop, line.sku)
+  if (mappedBySku?.Id) {
+    return {
+      value: mappedBySku.Id,
+      name: mappedBySku.Name,
+      mapped: true,
+      source: 'sku',
+    }
+  }
+
+  const mappedByName = await qboFindItemByName(shop, line.title)
+  if (mappedByName?.Id) {
+    return {
+      value: mappedByName.Id,
+      name: mappedByName.Name,
+      mapped: true,
+      source: 'name',
+    }
+  }
+
+  return {
+    value: QBO_MISC_ITEM_REF,
+    name: 'Misc Item',
+    mapped: false,
+    source: 'fallback',
+  }
+}
+
 async function qboCreateCustomer(shop, order) {
   const payload = {
     DisplayName: order.customerName || order.customerEmail || `Shopify Customer ${order.orderId}`,
@@ -813,63 +852,92 @@ async function qboFindOrCreateCustomer(shop, order) {
   return customer
 }
 
-function mapShopifyOrderToQboInvoiceLines(order) {
+function buildQboSalesItemLine({ amount, description, quantity, unitPrice, itemRef }) {
+  return {
+    Amount: Number(Number(amount || 0).toFixed(2)),
+    Description: description,
+    DetailType: 'SalesItemLineDetail',
+    SalesItemLineDetail: {
+      Qty: quantity,
+      UnitPrice: Number(Number(unitPrice || 0).toFixed(2)),
+      ItemRef: { value: itemRef },
+    },
+  }
+}
+
+async function mapShopifyOrderToQboInvoiceLines(shop, order) {
   const lines = []
 
   for (const line of order.lineItems || []) {
     const quantity = Number(line.quantity || 1)
     const unitPrice = Number(line.price || 0)
     const amount = Number((quantity * unitPrice).toFixed(2))
+    const resolvedItem = await qboResolveItemRef(shop, line)
+    const descriptionParts = [line.title || 'Shopify Item']
 
-    lines.push({
-      Amount: amount,
-      Description: line.title || 'Shopify Item',
-      DetailType: 'SalesItemLineDetail',
-      SalesItemLineDetail: {
-        Qty: quantity,
-        UnitPrice: unitPrice,
-        ItemRef: { value: QBO_ITEM_REF },
-      },
-    })
+    if (!resolvedItem.mapped) {
+      if (line.sku) {
+        descriptionParts.push(`SKU: ${line.sku}`)
+      }
+      if (line.variantTitle) {
+        descriptionParts.push(`Variant: ${line.variantTitle}`)
+      }
+    }
+
+    lines.push(
+      buildQboSalesItemLine({
+        amount,
+        description: descriptionParts.join(' • '),
+        quantity,
+        unitPrice,
+        itemRef: resolvedItem.value,
+      }),
+    )
   }
 
   if (Number(order.shipping || 0) > 0) {
-    lines.push({
-      Amount: Number(order.shipping),
-      Description: 'Shipping',
-      DetailType: 'SalesItemLineDetail',
-      SalesItemLineDetail: {
-        Qty: 1,
-        UnitPrice: Number(order.shipping),
-        ItemRef: { value: QBO_ITEM_REF },
-      },
-    })
+    lines.push(
+      buildQboSalesItemLine({
+        amount: Number(order.shipping),
+        description: 'Shipping',
+        quantity: 1,
+        unitPrice: Number(order.shipping),
+        itemRef: QBO_MISC_ITEM_REF,
+      }),
+    )
   }
 
   if (Number(order.tax || 0) > 0) {
+    lines.push(
+      buildQboSalesItemLine({
+        amount: Number(order.tax),
+        description: 'Tax',
+        quantity: 1,
+        unitPrice: Number(order.tax),
+        itemRef: QBO_MISC_ITEM_REF,
+      }),
+    )
+  }
+
+  if (order.note) {
     lines.push({
-      Amount: Number(order.tax),
-      Description: 'Tax',
-      DetailType: 'SalesItemLineDetail',
-      SalesItemLineDetail: {
-        Qty: 1,
-        UnitPrice: Number(order.tax),
-        ItemRef: { value: QBO_ITEM_REF },
-      },
+      DetailType: 'DescriptionOnly',
+      Description: `Customer note: ${order.note}`,
     })
   }
 
-  if (lines.length === 0) {
-    lines.push({
-      Amount: Number(order.totalPrice || 0),
-      Description: `Shopify Order ${order.orderName || order.orderId}`,
-      DetailType: 'SalesItemLineDetail',
-      SalesItemLineDetail: {
-        Qty: 1,
-        UnitPrice: Number(order.totalPrice || 0),
-        ItemRef: { value: QBO_ITEM_REF },
-      },
-    })
+  const hasSalesLine = lines.some((line) => line.DetailType === 'SalesItemLineDetail')
+
+  if (!hasSalesLine) {
+    lines.push(
+      buildQboSalesItemLine({
+        amount: Number(order.totalPrice || 0),
+        description: `Shopify Order ${order.orderName || order.orderId}`,
+        quantity: 1,
+        unitPrice: Number(order.totalPrice || 0),
+        itemRef: QBO_MISC_ITEM_REF,
+      }),
+    )
   }
 
   return lines
@@ -879,9 +947,9 @@ async function qboCreateInvoice(shop, { order, customerId }) {
   const payload = {
     CustomerRef: { value: customerId },
     TxnDate: new Date(order.paidAt || nowIso()).toISOString().slice(0, 10),
-    PrivateNote: `source=Shopify; order=${order.orderName || order.orderId}`,
+    PrivateNote: `source=Shopify; order=${order.orderName || order.orderId}${order.note ? `; note=${order.note}` : ''}`,
     CustomerMemo: { value: `Shopify Order ${order.orderName || order.orderId}` },
-    Line: mapShopifyOrderToQboInvoiceLines(order),
+    Line: await mapShopifyOrderToQboInvoiceLines(shop, order),
   }
 
   const response = await qboRequest({
@@ -903,6 +971,7 @@ async function fetchShopifyOrderDetails(shop, webhookPayload) {
       paidAt: webhookPayload.paidAt || nowIso(),
       customerEmail: webhookPayload.customerEmail || null,
       customerName: webhookPayload.customerName || null,
+      note: webhookPayload.note || null,
       totalPrice: Number(webhookPayload.totalPrice || 0),
       shipping: Number(webhookPayload.shipping || 0),
       tax: Number(webhookPayload.tax || 0),
@@ -940,11 +1009,16 @@ async function fetchShopifyOrderDetails(shop, webhookPayload) {
     paidAt: order.processed_at || order.updated_at || nowIso(),
     customerEmail: order.email || order.customer?.email || null,
     customerName: [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(' ') || null,
+    note: order.note || null,
     totalPrice: Number(order.current_total_price || order.total_price || 0),
     shipping: Number(order.total_shipping_price_set?.shop_money?.amount || 0),
     tax: Number(order.current_total_tax || order.total_tax || 0),
     lineItems: (order.line_items || []).map((item) => ({
       title: item.title,
+      sku: item.sku || null,
+      variantTitle: item.variant_title || null,
+      productId: item.product_id ? String(item.product_id) : null,
+      variantId: item.variant_id ? String(item.variant_id) : null,
       quantity: Number(item.quantity || 1),
       price: Number(item.price || 0),
     })),
