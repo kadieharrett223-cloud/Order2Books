@@ -88,6 +88,18 @@
   box-shadow: 0 6px 20px rgba(67, 233, 123, 0.4);
 }
 
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-connect:disabled,
+.btn-action:disabled,
+.btn-oauth:disabled,
+.btn-secondary-dark:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
 .btn-secondary {
   background: rgba(255, 255, 255, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -1025,6 +1037,12 @@
   outline: none;
   border-color: #4facfe;
   box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+}
+
+.form-input:disabled {
+  background: rgba(148, 163, 184, 0.12);
+  color: #64748b;
+  cursor: not-allowed;
 }
 
 .form-hint {

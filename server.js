@@ -20,6 +20,7 @@ if (!APP_URL) {
 
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY || ''
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET || ''
+const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || '2024-10'
 const SHOPIFY_SCOPES = process.env.SHOPIFY_SCOPES || 'read_orders'
 const STATE_SECRET = process.env.STATE_SECRET || 'dev-state-secret'
 
@@ -62,6 +63,21 @@ const PLAN_CONFIG = {
 }
 
 const ALLOW_DEV_WEBHOOK_WITHOUT_HMAC = process.env.ALLOW_DEV_WEBHOOK_WITHOUT_HMAC === 'true'
+
+const COMPLIANCE_WEBHOOKS = [
+  {
+    topic: 'customers/data_request',
+    path: '/webhooks/customers/data_request',
+  },
+  {
+    topic: 'customers/redact',
+    path: '/webhooks/customers/redact',
+  },
+  {
+    topic: 'shop/redact',
+    path: '/webhooks/shop/redact',
+  },
+]
 
 app.use(cors())
 app.use(
@@ -135,6 +151,11 @@ function buildShopifyCallbackUrl() {
   return `${APP_URL}/api/auth/shopify/callback`
 }
 
+function buildAppUrl(pathname) {
+  const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`
+  return `${APP_URL}${normalizedPath}`
+}
+
 function buildQboCallbackUrl() {
   return `${APP_URL}/api/auth/qbo/callback`
 }
@@ -193,18 +214,25 @@ function verifyShopifyCallbackHmac(queryParams) {
 }
 
 function verifyShopifyWebhookHmac(req) {
-  const header = req.get('x-shopify-hmac-sha256')
-  if (!header || !SHOPIFY_API_SECRET) {
+  const header = String(req.get('x-shopify-hmac-sha256') || '').trim()
+  if (!header || !SHOPIFY_API_SECRET || !Buffer.isBuffer(req.rawBody)) {
     return false
   }
 
   const digest = crypto
     .createHmac('sha256', SHOPIFY_API_SECRET)
-    .update(req.rawBody || Buffer.from(''))
+    .update(req.rawBody)
     .digest('base64')
 
+  const received = Buffer.from(header, 'utf8')
+  const expected = Buffer.from(digest, 'utf8')
+
+  if (received.length !== expected.length) {
+    return false
+  }
+
   try {
-    return crypto.timingSafeEqual(Buffer.from(header), Buffer.from(digest))
+    return crypto.timingSafeEqual(received, expected)
   } catch {
     return false
   }
@@ -256,6 +284,149 @@ async function countInstalledShops() {
   const db = await getDb()
   const row = await db.get(`SELECT COUNT(*) AS count FROM shops WHERE is_installed = 1`)
   return Number(row?.count || 0)
+}
+
+async function getActiveInstalledShop(req) {
+  const db = await getDb()
+  const requestedShopDomain = String(req?.shopDomainFromSession || '').toLowerCase().trim()
+
+  if (requestedShopDomain) {
+    const requestedShop = await db.get(
+      `SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1`,
+      [requestedShopDomain],
+    )
+
+    if (requestedShop) {
+      return requestedShop
+    }
+  }
+
+  return db.get(
+    `SELECT *
+     FROM shops
+     WHERE is_installed = 1
+     ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC
+     LIMIT 1`,
+  )
+}
+
+async function shouldUseDemoMode(req) {
+  const activeShop = await getActiveInstalledShop(req)
+  return !activeShop
+}
+
+function buildDemoSyncs() {
+  const now = Date.now()
+
+  return [
+    {
+      shopId: 'demo-shop',
+      shopDomain: 'demo-books.myshopify.com',
+      shopifyOrderId: '1045',
+      shopifyOrderName: '#1045',
+      qboCustomerId: 'DEMO-CUST-204',
+      qboInvoiceId: 'INV-2045',
+      financialStatus: 'paid',
+      syncStatus: 'synced',
+      lastError: null,
+      syncedAt: new Date(now - 15 * 60 * 1000).toISOString(),
+    },
+    {
+      shopId: 'demo-shop',
+      shopDomain: 'demo-books.myshopify.com',
+      shopifyOrderId: '1044',
+      shopifyOrderName: '#1044',
+      qboCustomerId: null,
+      qboInvoiceId: null,
+      financialStatus: 'paid',
+      syncStatus: 'processing',
+      lastError: null,
+      syncedAt: new Date(now - 55 * 60 * 1000).toISOString(),
+    },
+    {
+      shopId: 'demo-shop',
+      shopDomain: 'demo-books.myshopify.com',
+      shopifyOrderId: '1043',
+      shopifyOrderName: '#1043',
+      qboCustomerId: null,
+      qboInvoiceId: null,
+      financialStatus: 'paid',
+      syncStatus: 'failed',
+      lastError: 'Demo sync failed: customer mapping needs review.',
+      syncedAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      shopId: 'demo-shop',
+      shopDomain: 'demo-books.myshopify.com',
+      shopifyOrderId: '1042',
+      shopifyOrderName: '#1042',
+      qboCustomerId: 'DEMO-CUST-199',
+      qboInvoiceId: 'INV-2042',
+      financialStatus: 'paid',
+      syncStatus: 'synced',
+      lastError: null,
+      syncedAt: new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+    },
+  ]
+}
+
+function buildDemoLogs() {
+  const now = Date.now()
+
+  return [
+    {
+      id: 'demo-log-1',
+      created_at: new Date(now - 15 * 60 * 1000).toISOString(),
+      event_type: 'orders/paid',
+      status: 'success',
+      shop_domain: 'demo-books.myshopify.com',
+      shopify_order_id: '1045',
+      qbo_invoice_id: 'INV-2045',
+      message: 'Demo invoice created for sample order #1045.',
+    },
+    {
+      id: 'demo-log-2',
+      created_at: new Date(now - 55 * 60 * 1000).toISOString(),
+      event_type: 'orders/paid',
+      status: 'processing',
+      shop_domain: 'demo-books.myshopify.com',
+      shopify_order_id: '1044',
+      qbo_invoice_id: null,
+      message: 'Demo order is waiting for QuickBooks invoice creation.',
+    },
+    {
+      id: 'demo-log-3',
+      created_at: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
+      event_type: 'retry',
+      status: 'failed',
+      shop_domain: 'demo-books.myshopify.com',
+      shopify_order_id: '1043',
+      qbo_invoice_id: null,
+      message: 'Demo retry failed because the customer record needs attention.',
+    },
+    {
+      id: 'demo-log-4',
+      created_at: new Date(now - 6 * 60 * 60 * 1000).toISOString(),
+      event_type: 'qbo/oauth',
+      status: 'success',
+      shop_domain: 'demo-books.myshopify.com',
+      shopify_order_id: null,
+      qbo_invoice_id: null,
+      message: 'Demo QuickBooks company connected for preview mode.',
+    },
+  ]
+}
+
+function buildDemoSettings() {
+  return {
+    shopifyDomain: 'demo-books.myshopify.com',
+    shopifyApiKey: 'demo_preview_token',
+    shopifyConnected: true,
+    qboConnected: true,
+    qboCompanyName: 'Demo QuickBooks Company',
+    autoDecrementInventory: false,
+    isDemo: true,
+  }
 }
 
 async function countMonthlyOrderSyncs() {
@@ -409,6 +580,82 @@ async function exchangeShopifyCodeForToken({ shop, code }) {
   }
 
   return response.json()
+}
+
+async function shopifyAdminRequest({ shopDomain, accessToken, method, path, body }) {
+  const response = await fetch(`https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}${path}`, {
+    method,
+    headers: {
+      'X-Shopify-Access-Token': accessToken,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Shopify Admin API error (${response.status}): ${message}`)
+  }
+
+  if (response.status === 204) {
+    return null
+  }
+
+  return response.json()
+}
+
+async function registerComplianceWebhooks({ shopDomain, accessToken }) {
+  const existingResponse = await shopifyAdminRequest({
+    shopDomain,
+    accessToken,
+    method: 'GET',
+    path: '/webhooks.json',
+  })
+
+  const existingWebhooks = existingResponse?.webhooks || []
+
+  for (const webhook of COMPLIANCE_WEBHOOKS) {
+    const callbackUrl = buildAppUrl(webhook.path)
+    const existingWebhook = existingWebhooks.find((item) => item.topic === webhook.topic)
+
+    if (existingWebhook) {
+      const needsUpdate = existingWebhook.address !== callbackUrl || String(existingWebhook.format || '').toLowerCase() !== 'json'
+
+      if (!needsUpdate) {
+        continue
+      }
+
+      await shopifyAdminRequest({
+        shopDomain,
+        accessToken,
+        method: 'PUT',
+        path: `/webhooks/${existingWebhook.id}.json`,
+        body: {
+          webhook: {
+            id: existingWebhook.id,
+            address: callbackUrl,
+            format: 'json',
+          },
+        },
+      })
+
+      continue
+    }
+
+    await shopifyAdminRequest({
+      shopDomain,
+      accessToken,
+      method: 'POST',
+      path: '/webhooks.json',
+      body: {
+        webhook: {
+          topic: webhook.topic,
+          address: callbackUrl,
+          format: 'json',
+        },
+      },
+    })
+  }
 }
 
 async function exchangeQboCodeForToken({ code }) {
@@ -669,7 +916,7 @@ async function fetchShopifyOrderDetails(shop, webhookPayload) {
   }
 
   const response = await fetch(
-    `https://${shop.shop_domain}/admin/api/2024-10/orders/${orderId}.json`,
+    `https://${shop.shop_domain}/admin/api/${SHOPIFY_API_VERSION}/orders/${orderId}.json`,
     {
       headers: {
         'X-Shopify-Access-Token': shop.shopify_access_token,
@@ -701,6 +948,61 @@ async function fetchShopifyOrderDetails(shop, webhookPayload) {
       quantity: Number(item.quantity || 1),
       price: Number(item.price || 0),
     })),
+  }
+}
+
+function getWebhookPayload(req) {
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+    return req.body
+  }
+
+  if (!Buffer.isBuffer(req.rawBody) || req.rawBody.length === 0) {
+    return {}
+  }
+
+  try {
+    return JSON.parse(req.rawBody.toString('utf8'))
+  } catch {
+    return {}
+  }
+}
+
+function createComplianceWebhookHandler(topic) {
+  return async (req, res) => {
+    const payload = getWebhookPayload(req)
+    const shopDomain = String(req.get('x-shopify-shop-domain') || payload?.shop_domain || '').toLowerCase().trim()
+
+    try {
+      ensureWebhookSignature(req)
+      res.status(200).json({ success: true })
+
+      void (async () => {
+        const shop = shopDomain ? await getShopByDomain(shopDomain) : null
+        await writeSyncLog({
+          shopId: shop?.id || null,
+          shopifyOrderId: null,
+          eventType: topic,
+          status: 'received',
+          message: `Shopify compliance webhook received: ${topic}`,
+          payload,
+        })
+      })().catch((error) => {
+        console.error(`Failed to log compliance webhook ${topic}:`, error)
+      })
+
+      return
+    } catch (error) {
+      void writeSyncLog({
+        eventType: topic,
+        status: 'failed',
+        message: error.message,
+        payload,
+      }).catch((logError) => {
+        console.error(`Failed to log rejected compliance webhook ${topic}:`, logError)
+      })
+
+      return res.status(401).json({ error: error.message })
+    }
   }
 }
 
@@ -818,6 +1120,11 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
 
     const tokenResponse = await exchangeShopifyCodeForToken({ shop, code })
 
+    await registerComplianceWebhooks({
+      shopDomain: shop,
+      accessToken: tokenResponse.access_token,
+    })
+
     const savedShop = await upsertShopFromShopifyOAuth({
       shopDomain: shop,
       accessToken: tokenResponse.access_token,
@@ -926,8 +1233,26 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
 })
 
 app.get('/api/syncs', async (req, res) => {
-  const syncs = await listOrderSyncs()
+  if (await shouldUseDemoMode(req)) {
+    return res.json({
+      demoMode: true,
+      syncs: buildDemoSyncs(),
+    })
+  }
+
+  const activeShop = await getActiveInstalledShop(req)
+  const db = await getDb()
+  const syncs = await db.all(
+    `SELECT os.*, s.shop_domain
+     FROM order_syncs os
+     JOIN shops s ON s.id = os.shop_id
+     WHERE os.shop_id = ?
+     ORDER BY COALESCE(os.synced_at, os.updated_at, os.created_at) DESC`,
+    [activeShop.id],
+  )
+
   return res.json({
+    demoMode: false,
     syncs: syncs.map((row) => ({
       shopId: row.shop_id,
       shopDomain: row.shop_domain,
@@ -944,12 +1269,38 @@ app.get('/api/syncs', async (req, res) => {
 })
 
 app.get('/api/syncs/:shopifyOrderId', async (req, res) => {
-  const sync = await getOrderSyncByShopifyOrderId(req.params.shopifyOrderId)
+  if (await shouldUseDemoMode(req)) {
+    const searchValue = String(req.params.shopifyOrderId || '').trim()
+    const demoSync = buildDemoSyncs().find(
+      (sync) =>
+        String(sync.shopifyOrderId) === searchValue ||
+        String(sync.shopifyOrderName).replace(/^#/, '') === searchValue ||
+        String(sync.qboInvoiceId || '') === searchValue,
+    )
+
+    if (!demoSync) {
+      return res.status(404).json({ error: 'Sync not found' })
+    }
+
+    return res.json({ demoMode: true, sync: demoSync })
+  }
+
+  const activeShop = await getActiveInstalledShop(req)
+  const db = await getDb()
+  const sync = await db.get(
+    `SELECT os.*, s.shop_domain
+     FROM order_syncs os
+     JOIN shops s ON s.id = os.shop_id
+     WHERE os.shop_id = ? AND os.shopify_order_id = ?`,
+    [activeShop.id, String(req.params.shopifyOrderId)],
+  )
+
   if (!sync) {
     return res.status(404).json({ error: 'Sync not found' })
   }
 
   return res.json({
+    demoMode: false,
     sync: {
       shopId: sync.shop_id,
       shopDomain: sync.shop_domain,
@@ -1044,44 +1395,59 @@ app.post('/api/syncs/:shopifyOrderId/retry', async (req, res) => {
 })
 
 app.get('/api/logs', async (req, res) => {
+  if (await shouldUseDemoMode(req)) {
+    return res.json({
+      demoMode: true,
+      logs: buildDemoLogs(),
+    })
+  }
+
+  const activeShop = await getActiveInstalledShop(req)
   const db = await getDb()
   const logs = await db.all(
     `SELECT sl.*, s.shop_domain, os.qbo_invoice_id
      FROM sync_logs sl
      LEFT JOIN shops s ON s.id = sl.shop_id
      LEFT JOIN order_syncs os ON os.shop_id = sl.shop_id AND os.shopify_order_id = sl.shopify_order_id
+     WHERE sl.shop_id = ? OR sl.shop_id IS NULL
      ORDER BY sl.created_at DESC
      LIMIT 500`,
+    [activeShop.id],
   )
-  return res.json({ logs })
+  return res.json({ demoMode: false, logs })
 })
 
 app.get('/api/settings', async (req, res) => {
-  const db = await getDb()
-  const settings = await db.get('SELECT * FROM app_settings WHERE id = 1')
-  
-  if (!settings) {
+  if (await shouldUseDemoMode(req)) {
     return res.json({
-      settings: {
-        shopifyDomain: '',
-        shopifyApiKey: '',
-        qboConnected: false,
-        autoDecrementInventory: false,
-      },
+      demoMode: true,
+      settings: buildDemoSettings(),
     })
   }
 
+  const activeShop = await getActiveInstalledShop(req)
+  const db = await getDb()
+  const settings = await db.get('SELECT * FROM app_settings WHERE id = 1')
+
   return res.json({
+    demoMode: false,
     settings: {
-      shopifyDomain: settings.shopify_domain || '',
-      shopifyApiKey: settings.shopify_api_key ? '***' : '',
-      qboConnected: Boolean(settings.qbo_connected),
-      autoDecrementInventory: Boolean(settings.auto_decrement_inventory),
+      shopifyDomain: activeShop?.shop_domain || settings?.shopify_domain || '',
+      shopifyApiKey: activeShop?.shopify_access_token || settings?.shopify_api_key ? '***' : '',
+      shopifyConnected: Boolean(activeShop?.shop_domain),
+      qboConnected: Boolean(activeShop?.qbo_access_token && activeShop?.qbo_realm_id),
+      qboCompanyName: activeShop?.qbo_realm_id ? `QuickBooks realm ${activeShop.qbo_realm_id}` : '',
+      autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
+      isDemo: false,
     },
   })
 })
 
 app.post('/api/settings', async (req, res) => {
+  if (await shouldUseDemoMode(req)) {
+    return res.status(403).json({ error: 'Install the app in Shopify to save live settings.' })
+  }
+
   const { shopifyDomain, shopifyApiKey, autoDecrementInventory } = req.body
 
   const db = await getDb()
@@ -1356,89 +1722,17 @@ app.post('/api/webhooks/shopify/app-uninstalled', async (req, res) => {
   }
 })
 
-app.post('/api/webhooks/shopify/customers-data-request', async (req, res) => {
-  try {
-    ensureWebhookSignature(req)
+const customersDataRequestWebhookHandler = createComplianceWebhookHandler('customers/data_request')
+const customersRedactWebhookHandler = createComplianceWebhookHandler('customers/redact')
+const shopRedactWebhookHandler = createComplianceWebhookHandler('shop/redact')
 
-    const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shop_domain || '').toLowerCase().trim()
-    const shop = shopDomain ? await getShopByDomain(shopDomain) : null
+app.post('/webhooks/customers/data_request', customersDataRequestWebhookHandler)
+app.post('/webhooks/customers/redact', customersRedactWebhookHandler)
+app.post('/webhooks/shop/redact', shopRedactWebhookHandler)
 
-    await writeSyncLog({
-      shopId: shop?.id || null,
-      shopifyOrderId: null,
-      eventType: 'customers/data_request',
-      status: 'received',
-      message: 'Shopify compliance webhook received: customers/data_request',
-      payload: req.body,
-    })
-
-    return res.status(200).json({ success: true })
-  } catch (error) {
-    await writeSyncLog({
-      eventType: 'customers/data_request',
-      status: 'failed',
-      message: error.message,
-      payload: req.body,
-    })
-    return res.status(401).json({ error: error.message })
-  }
-})
-
-app.post('/api/webhooks/shopify/customers-redact', async (req, res) => {
-  try {
-    ensureWebhookSignature(req)
-
-    const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shop_domain || '').toLowerCase().trim()
-    const shop = shopDomain ? await getShopByDomain(shopDomain) : null
-
-    await writeSyncLog({
-      shopId: shop?.id || null,
-      shopifyOrderId: null,
-      eventType: 'customers/redact',
-      status: 'received',
-      message: 'Shopify compliance webhook received: customers/redact',
-      payload: req.body,
-    })
-
-    return res.status(200).json({ success: true })
-  } catch (error) {
-    await writeSyncLog({
-      eventType: 'customers/redact',
-      status: 'failed',
-      message: error.message,
-      payload: req.body,
-    })
-    return res.status(401).json({ error: error.message })
-  }
-})
-
-app.post('/api/webhooks/shopify/shop-redact', async (req, res) => {
-  try {
-    ensureWebhookSignature(req)
-
-    const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shop_domain || '').toLowerCase().trim()
-    const shop = shopDomain ? await getShopByDomain(shopDomain) : null
-
-    await writeSyncLog({
-      shopId: shop?.id || null,
-      shopifyOrderId: null,
-      eventType: 'shop/redact',
-      status: 'received',
-      message: 'Shopify compliance webhook received: shop/redact',
-      payload: req.body,
-    })
-
-    return res.status(200).json({ success: true })
-  } catch (error) {
-    await writeSyncLog({
-      eventType: 'shop/redact',
-      status: 'failed',
-      message: error.message,
-      payload: req.body,
-    })
-    return res.status(401).json({ error: error.message })
-  }
-})
+app.post('/api/webhooks/shopify/customers-data-request', customersDataRequestWebhookHandler)
+app.post('/api/webhooks/shopify/customers-redact', customersRedactWebhookHandler)
+app.post('/api/webhooks/shopify/shop-redact', shopRedactWebhookHandler)
 
 async function start() {
   await migrate()

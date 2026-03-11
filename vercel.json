@@ -29,6 +29,10 @@
   ],
   "routes": [
     {
+      "src": "/webhooks/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/index.js"
     },
@@ -60,7 +64,7 @@
       "src": "/(.*)",
       "dest": "/frontend/index.html"
     }
-  ]
+  ],
   "env": {
     "NODE_ENV": "production"
   }

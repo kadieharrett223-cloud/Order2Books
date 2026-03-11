@@ -27,6 +27,86 @@ async function apiFetch(url, options = {}) {
   });
 }
 
+const DEFAULT_SETTINGS = {
+  shopifyDomain: '',
+  shopifyApiKey: '',
+  shopifyConnected: false,
+  qboConnected: false,
+  qboCompanyName: '',
+  autoDecrementInventory: false,
+  isDemo: false,
+};
+
+const DEFAULT_PLAN_DATA = {
+  plan: {
+    key: 'starter',
+    name: 'Starter',
+    priceMonthly: 9.99,
+    orderLimitPerMonth: 200,
+    usedOrdersThisMonth: 0,
+    remainingOrdersThisMonth: 200,
+    supportsMultiStore: false,
+    features: [
+      'Up to 200 orders / month',
+      'Basic order → invoice sync',
+      'Manual retry',
+      'Email support',
+    ],
+  },
+  plans: [
+    {
+      key: 'starter',
+      name: 'Starter',
+      priceMonthly: 9.99,
+      orderLimitPerMonth: 200,
+      features: [
+        'Up to 200 orders / month',
+        'Basic order → invoice sync',
+        'Manual retry',
+        'Email support',
+      ],
+    },
+    {
+      key: 'scale',
+      name: 'Scale',
+      priceMonthly: 29,
+      orderLimitPerMonth: null,
+      features: [
+        'Unlimited orders',
+        'Multi-store support',
+        'Advanced reporting',
+        'Dedicated support',
+      ],
+    },
+  ],
+};
+
+function formatRelativeTime(value) {
+  if (!value) return '—';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+}
+
+function getStatusBadgeClass(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'success' || normalized === 'synced' || normalized === 'received') return 'status-synced';
+  if (normalized.includes('fail')) return 'status-failed';
+  return 'status-retrying';
+}
+
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('general');
@@ -35,70 +115,44 @@ function App() {
   const [upgradeMessage, setUpgradeMessage] = useState('');
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [syncs, setSyncs] = useState([]);
+  const [syncsLoading, setSyncsLoading] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
-  const [settings, setSettings] = useState({
-    shopifyDomain: '',
-    shopifyApiKey: '',
-    qboConnected: false,
-    autoDecrementInventory: false,
-  });
-  const [planData, setPlanData] = useState({
-    plan: {
-      key: 'starter',
-      name: 'Starter',
-      priceMonthly: 9.99,
-      orderLimitPerMonth: 200,
-      usedOrdersThisMonth: 0,
-      remainingOrdersThisMonth: 200,
-      supportsMultiStore: false,
-      features: [
-        'Up to 200 orders / month',
-        'Basic order → invoice sync',
-        'Manual retry',
-        'Email support',
-      ],
-    },
-    plans: [
-      {
-        key: 'starter',
-        name: 'Starter',
-        priceMonthly: 9.99,
-        orderLimitPerMonth: 200,
-        features: [
-          'Up to 200 orders / month',
-          'Basic order → invoice sync',
-          'Manual retry',
-          'Email support',
-        ],
-      },
-      {
-        key: 'scale',
-        name: 'Scale',
-        priceMonthly: 29,
-        orderLimitPerMonth: null,
-        features: [
-          'Unlimited orders',
-          'Multi-store support',
-          'Advanced reporting',
-          'Dedicated support',
-        ],
-      },
-    ],
-  });
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [planData, setPlanData] = useState(DEFAULT_PLAN_DATA);
+
+  const loadPlan = async () => {
+    try {
+      const response = await apiFetch('/api/plan');
+      if (!response.ok) return;
+      const data = await response.json();
+      setPlanData(data);
+    } catch {
+    }
+  };
+
+  const loadSyncs = async () => {
+    setSyncsLoading(true);
+    try {
+      const response = await apiFetch('/api/syncs');
+      if (!response.ok) return;
+      const data = await response.json();
+      setSyncs(Array.isArray(data.syncs) ? data.syncs : []);
+      setDemoMode(Boolean(data.demoMode));
+    } catch {
+      setSyncs([]);
+    } finally {
+      setSyncsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadPlan = async () => {
-      try {
-        const response = await apiFetch('/api/plan');
-        if (!response.ok) return;
-        const data = await response.json();
-        setPlanData(data);
-      } catch {
-      }
-    };
-
     loadPlan();
+    loadSyncs();
+    loadSettings();
+    loadLogs();
   }, []);
 
   const refreshPlan = async () => {
@@ -115,6 +169,7 @@ function App() {
       if (!response.ok) return;
       const data = await response.json();
       setLogs(Array.isArray(data.logs) ? data.logs : []);
+      setDemoMode(Boolean(data.demoMode));
     } catch {
       setLogs([]);
     } finally {
@@ -158,12 +213,18 @@ function App() {
       const response = await apiFetch('/api/settings');
       if (!response.ok) return;
       const data = await response.json();
-      setSettings(data.settings || settings);
+      setSettings({ ...DEFAULT_SETTINGS, ...(data.settings || {}) });
+      setDemoMode(Boolean(data.demoMode || data.settings?.isDemo));
     } catch {
     }
   };
 
   const saveSettings = async () => {
+    if (demoMode) {
+      alert('Install the app in Shopify to save live settings.');
+      return;
+    }
+
     try {
       const response = await apiFetch('/api/settings', {
         method: 'POST',
@@ -172,15 +233,18 @@ function App() {
       });
       if (response.ok) {
         alert('Settings saved successfully!');
+      } else {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Failed to save settings');
       }
     } catch {
       alert('Failed to save settings');
     }
   };
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
+  const refreshAppData = async () => {
+    await Promise.all([loadPlan(), loadSettings(), loadSyncs(), loadLogs()]);
+  };
 
   const handleUpgrade = async (planKey) => {
     setUpgradeMessage('');
@@ -209,6 +273,25 @@ function App() {
   const monthlyLimit = planData.plan.orderLimitPerMonth;
   const usageRatio = monthlyLimit ? usedOrdersThisMonth / monthlyLimit : 0;
   const showUpgradeWarning = monthlyLimit != null && usageRatio >= 0.8;
+  const syncedOrdersCount = syncs.filter((sync) => String(sync.syncStatus).toLowerCase() === 'synced').length;
+  const invoiceCount = syncs.filter((sync) => Boolean(sync.qboInvoiceId)).length;
+  const syncErrorCount = syncs.filter((sync) => String(sync.syncStatus).toLowerCase().includes('fail')).length;
+  const attentionCount = syncs.filter((sync) => {
+    const status = String(sync.syncStatus || '').toLowerCase();
+    return status && status !== 'synced' && status !== 'success';
+  }).length;
+  const disconnectedCount = settings.qboConnected ? 0 : 1;
+  const lastSync = syncs[0]?.syncedAt || null;
+  const recentSyncCount = syncs.filter((sync) => {
+    if (!sync.syncedAt) return false;
+    return Date.now() - new Date(sync.syncedAt).getTime() <= 24 * 60 * 60 * 1000;
+  }).length;
+  const recentInvoiceCount = syncs.filter((sync) => {
+    if (!sync.syncedAt || !sync.qboInvoiceId) return false;
+    return Date.now() - new Date(sync.syncedAt).getTime() <= 24 * 60 * 60 * 1000;
+  }).length;
+  const recentActivity = logs.slice(0, 4);
+  const recentTableSyncs = syncs.slice(0, 5);
 
   return (
     <div className="app">
@@ -219,10 +302,10 @@ function App() {
           <h1 className="app-title">OrderBooks <span className="title-light">Dashboard</span></h1>
         </div>
         <div className="header-actions">
-          <button className="btn-secondary">
+          <button className="btn-secondary" onClick={() => setActivePage('syncLog')}>
             🔄 Retry ▼
           </button>
-          <button className="btn-secondary">
+          <button className="btn-secondary" onClick={refreshAppData}>
             🔵 Refresh
           </button>
           <button
@@ -231,7 +314,9 @@ function App() {
           >
             ⬆ Upgrade
           </button>
-          <button className="btn-primary">Connect</button>
+          <button className="btn-primary" onClick={() => setActivePage('settings')}>
+            {demoMode ? 'Preview Mode' : 'Connect'}
+          </button>
         </div>
       </header>
 
@@ -266,6 +351,15 @@ function App() {
 
         {/* Main Content */}
         <main className="content">
+          {demoMode ? (
+            <section className="section-card" style={{ marginBottom: '20px', borderLeft: '4px solid #4facfe' }}>
+              <div className="settings-list">
+                <div><strong>Preview mode:</strong> Sample store, invoices, and QuickBooks data are shown before install.</div>
+                <div><strong>Live mode:</strong> Install the app in Shopify to switch this dashboard to your real store data.</div>
+              </div>
+            </section>
+          ) : null}
+
           <div className="page-header">
             <h2 className="page-title">
               {activePage === 'dashboard' && 'OrderBooks Dashboard'}
@@ -291,8 +385,8 @@ function App() {
                 <div className="stat-icon">📦</div>
                 <div className="stat-label">Orders Synced</div>
               </div>
-              <div className="stat-number">1,280</div>
-              <div className="stat-change positive">+110 today</div>
+              <div className="stat-number">{syncsLoading ? '…' : syncedOrdersCount}</div>
+              <div className="stat-change positive">+{recentSyncCount} in last 24h</div>
             </div>
 
             <div className="stat-card stat-card-green">
@@ -300,8 +394,8 @@ function App() {
                 <div className="stat-icon">📄</div>
                 <div className="stat-label">Invoices Created</div>
               </div>
-              <div className="stat-number">1,279</div>
-              <div className="stat-change positive">+112 today</div>
+              <div className="stat-number">{syncsLoading ? '…' : invoiceCount}</div>
+              <div className="stat-change positive">+{recentInvoiceCount} in last 24h</div>
             </div>
 
             <div className="stat-card stat-card-red">
@@ -309,8 +403,8 @@ function App() {
                 <div className="stat-icon">⚠</div>
                 <div className="stat-label">Sync Errors</div>
               </div>
-              <div className="stat-number">2</div>
-              <div className="stat-change negative">2 errors</div>
+              <div className="stat-number">{syncsLoading ? '…' : syncErrorCount}</div>
+              <div className="stat-change negative">{attentionCount} need attention</div>
             </div>
 
             <div className="stat-card stat-card-purple">
@@ -318,8 +412,8 @@ function App() {
                 <div className="stat-icon">🕐</div>
                 <div className="stat-label">Last Sync</div>
               </div>
-              <div className="stat-number-small">15 min ago</div>
-              <div className="stat-change">11° previous</div>
+              <div className="stat-number-small">{formatRelativeTime(lastSync)}</div>
+              <div className="stat-change">{demoMode ? 'Sample timeline' : 'Live timeline'}</div>
             </div>
           </div>
 
@@ -330,9 +424,11 @@ function App() {
               <div className="account-card">
                 <div className="account-logo shopify-logo">🛍️</div>
                 <div className="account-info">
-                  <div className="account-name">pri.myshopify.com</div>
-                  <div className="account-status connected">✓ Connected</div>
-                  <div className="account-meta">Last checked: 6 minutes ago</div>
+                  <div className="account-name">{settings.shopifyDomain || 'No Shopify store connected'}</div>
+                  <div className={`account-status ${settings.shopifyConnected ? 'connected' : 'disconnected'}`}>
+                    {settings.shopifyConnected ? '✓ Connected' : '✕ Not connected'}
+                  </div>
+                  <div className="account-meta">{demoMode ? 'Sample Shopify store preview' : 'Live Shopify connection status'}</div>
                 </div>
               </div>
 
@@ -341,11 +437,23 @@ function App() {
               <div className="account-card">
                 <div className="account-logo qb-logo">🟢</div>
                 <div className="account-info">
-                  <div className="account-name">QuickBooks Online</div>
-                  <div className="account-status disconnected">✕ Disconnected</div>
-                  <div className="account-meta">Last checked: 3 hours ago</div>
+                  <div className="account-name">{settings.qboCompanyName || 'QuickBooks Online'}</div>
+                  <div className={`account-status ${settings.qboConnected ? 'connected' : 'disconnected'}`}>
+                    {settings.qboConnected ? '✓ Connected' : '✕ Disconnected'}
+                  </div>
+                  <div className="account-meta">{demoMode ? 'Sample QuickBooks connection preview' : 'Live QuickBooks connection status'}</div>
                 </div>
-                <button className="btn-connect">Connect</button>
+                <button
+                  className="btn-connect"
+                  disabled={demoMode}
+                  onClick={() => {
+                    if (!demoMode) {
+                      window.location.href = '/api/auth/qbo/start';
+                    }
+                  }}
+                >
+                  {demoMode ? 'Install to connect' : settings.qboConnected ? 'Connected' : 'Connect'}
+                </button>
               </div>
             </div>
           </section>
@@ -359,22 +467,22 @@ function App() {
               <div className="health-pill">
                 <span className="health-icon green">✓</span>
                 <span className="health-label">Healthy syncs</span>
-                <strong className="health-value">17</strong>
+                <strong className="health-value">{syncedOrdersCount}</strong>
               </div>
               <div className="health-pill">
                 <span className="health-icon orange">⚠</span>
                 <span className="health-label">Needs attention</span>
-                <strong className="health-value">2</strong>
+                <strong className="health-value">{attentionCount}</strong>
               </div>
               <div className="health-pill">
                 <span className="health-icon red">⛔</span>
                 <span className="health-label">Disconnected</span>
-                <strong className="health-value">1</strong>
+                <strong className="health-value">{disconnectedCount}</strong>
               </div>
               <div className="health-pill">
                 <span className="health-icon gray">⏱</span>
-                <span className="health-label">Avg sync time</span>
-                <strong className="health-value">1m 5s</strong>
+                <span className="health-label">Dashboard mode</span>
+                <strong className="health-value">{demoMode ? 'Demo data' : 'Live data'}</strong>
               </div>
             </div>
 
@@ -420,48 +528,30 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>
-                      <span className="order-id">#1034</span>
-                      <span className="invoice-id-mini">#1014</span>
-                    </td>
-                    <td className="invoice-mapping">#1034 → #1014</td>
-                    <td>
-                      <span className="status-badge status-synced">Synced</span>
-                    </td>
-                    <td>15 minutes ago</td>
-                    <td>
-                      <button className="btn-action">Retry</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span className="order-id">#1033</span>
-                      <span className="invoice-id-mini">#1013</span>
-                    </td>
-                    <td className="invoice-mapping">#1033 → #1013</td>
-                    <td>
-                      <span className="status-badge status-retrying">Retrying</span>
-                    </td>
-                    <td>2 hours ago</td>
-                    <td>
-                      <button className="btn-action">Retry</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span className="order-id">#1032</span>
-                      <span className="invoice-id-mini">#1012</span>
-                    </td>
-                    <td className="invoice-mapping">#1032 → #1012</td>
-                    <td>
-                      <span className="status-badge status-failed">Failed</span>
-                    </td>
-                    <td>4 hours ago</td>
-                    <td>
-                      <button className="btn-action">Retry</button>
-                    </td>
-                  </tr>
+                  {recentTableSyncs.length === 0 ? (
+                    <tr>
+                      <td colSpan="5">{syncsLoading ? 'Loading sync activity...' : 'No order syncs found yet.'}</td>
+                    </tr>
+                  ) : recentTableSyncs.map((sync) => (
+                    <tr key={sync.shopifyOrderId}>
+                      <td>
+                        <span className="order-id">{sync.shopifyOrderName || `#${sync.shopifyOrderId}`}</span>
+                        <span className="invoice-id-mini">{sync.qboInvoiceId || '(pending)'}</span>
+                      </td>
+                      <td className="invoice-mapping">{`${sync.shopifyOrderName || `#${sync.shopifyOrderId}`} → ${sync.qboInvoiceId || '(pending)'}`}</td>
+                      <td>
+                        <span className={`status-badge ${getStatusBadgeClass(sync.syncStatus)}`}>
+                          {sync.syncStatus || '—'}
+                        </span>
+                      </td>
+                      <td>{formatRelativeTime(sync.syncedAt)}</td>
+                      <td>
+                        <button className="btn-action" onClick={() => { setActivePage('syncLog'); setSearchQuery(String(sync.shopifyOrderId || '')); }}>
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -472,6 +562,34 @@ function App() {
             <div className="section-header">
               <h3 className="section-title">Recent Activity</h3>
               <button className="btn-more">⋯</button>
+            </div>
+            <div className="table-container">
+              <table className="sync-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Event</th>
+                    <th>Status</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentActivity.length === 0 ? (
+                    <tr>
+                      <td colSpan="4">No recent activity yet.</td>
+                    </tr>
+                  ) : recentActivity.map((log) => (
+                    <tr key={log.id}>
+                      <td>{formatRelativeTime(log.created_at)}</td>
+                      <td>{log.event_type || '—'}</td>
+                      <td>
+                        <span className={`status-badge ${getStatusBadgeClass(log.status)}`}>{log.status || '—'}</span>
+                      </td>
+                      <td>{log.message || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
             </>
@@ -548,13 +666,7 @@ function App() {
                           <td>{log.event_type || '—'}</td>
                           <td>
                             <span
-                              className={`status-badge ${
-                                log.status === 'success'
-                                  ? 'status-synced'
-                                  : log.status?.includes('fail')
-                                    ? 'status-failed'
-                                    : 'status-retrying'
-                              }`}
+                              className={`status-badge ${getStatusBadgeClass(log.status)}`}
                             >
                               {log.status || '—'}
                             </span>
@@ -605,6 +717,7 @@ function App() {
                       <div><strong>Plan:</strong> {planData.plan.name}</div>
                       <div><strong>Monthly usage:</strong> {usedOrdersThisMonth}{monthlyLimit == null ? ' / unlimited' : ` / ${monthlyLimit}`}</div>
                       <div><strong>Multi-store:</strong> {planData.plan.supportsMultiStore ? 'Enabled' : 'Starter limitation (1 store)'}</div>
+                      <div><strong>Mode:</strong> {demoMode ? 'Preview data before install' : 'Live merchant data'}</div>
                     </div>
                   </section>
 
@@ -619,6 +732,7 @@ function App() {
                           className="form-input"
                           placeholder="your-store.myshopify.com"
                           value={settings.shopifyDomain}
+                          disabled={demoMode}
                           onChange={(e) => setSettings({ ...settings, shopifyDomain: e.target.value })}
                         />
                       </div>
@@ -630,10 +744,11 @@ function App() {
                           className="form-input"
                           placeholder="shpat_xxxxx"
                           value={settings.shopifyApiKey}
+                          disabled={demoMode}
                           onChange={(e) => setSettings({ ...settings, shopifyApiKey: e.target.value })}
                         />
                       </div>
-                      <p className="form-hint">💡 Get your API credentials from Shopify Admin → Settings → Apps and sales channels → Develop apps</p>
+                      <p className="form-hint">{demoMode ? 'Preview mode shows a sample Shopify store until the app is installed.' : 'Get your API credentials from Shopify Admin → Settings → Apps and sales channels → Develop apps'}</p>
                     </div>
                   </section>
 
@@ -643,9 +758,10 @@ function App() {
                       <p className="form-hint">Connect your QuickBooks Online account to sync invoices.</p>
                       <button
                         className="btn-oauth"
+                        disabled={demoMode}
                         onClick={() => window.location.href = '/api/auth/qbo/start'}
                       >
-                        {settings.qboConnected ? '✓ Connected to QuickBooks' : '🔗 Connect QuickBooks Online'}
+                        {demoMode ? 'Install app to connect QuickBooks' : settings.qboConnected ? '✓ Connected to QuickBooks' : '🔗 Connect QuickBooks Online'}
                       </button>
                     </div>
                   </section>
@@ -658,6 +774,7 @@ function App() {
                           id="autoDecrement"
                           type="checkbox"
                           checked={settings.autoDecrementInventory}
+                          disabled={demoMode}
                           onChange={(e) => setSettings({ ...settings, autoDecrementInventory: e.target.checked })}
                         />
                         <label htmlFor="autoDecrement">Automatically decrement inventory in QuickBooks when order is synced</label>
@@ -668,7 +785,7 @@ function App() {
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                     <button className="btn-secondary-dark" onClick={loadSettings}>Reset</button>
-                    <button className="btn-primary" onClick={saveSettings}>Save Settings</button>
+                    <button className="btn-primary" onClick={saveSettings} disabled={demoMode}>Save Settings</button>
                   </div>
                 </>
               ) : null}
