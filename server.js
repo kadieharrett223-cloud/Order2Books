@@ -878,6 +878,44 @@ async function qboFindItemByName(shop, name) {
   return startsWithResponse.QueryResponse?.Item?.[0] || null
 }
 
+async function qboSearchItems(shop, searchTerm) {
+  // Search QB items by name or SKU, return up to 20 results
+  if (!searchTerm || String(searchTerm).trim().length === 0) {
+    return []
+  }
+
+  const safeTerm = String(searchTerm).trim().replace(/'/g, "\\'")
+  
+  // Search by name (starts with match, most relevant)
+  const nameQuery = `select * from Item where Name like '${safeTerm}%' and Active = true maxresults 20`
+  const nameResponse = await qboQuery(shop, nameQuery).catch(() => ({ QueryResponse: {} }))
+  const nameMatches = nameResponse.QueryResponse?.Item || []
+
+  // Search by SKU (exact and partial)
+  const skuQuery = `select * from Item where Sku like '%${safeTerm}%' and Active = true maxresults 20`
+  const skuResponse = await qboQuery(shop, skuQuery).catch(() => ({ QueryResponse: {} }))
+  const skuMatches = skuResponse.QueryResponse?.Item || []
+
+  // Combine and deduplicate
+  const combined = [...nameMatches, ...skuMatches]
+  const seen = new Set()
+  const results = []
+  
+  for (const item of combined) {
+    if (!seen.has(item.Id)) {
+      seen.add(item.Id)
+      results.push({
+        id: item.Id,
+        name: item.Name,
+        sku: item.Sku || '',
+        type: item.Type,
+      })
+    }
+  }
+
+  return results.slice(0, 20)
+}
+
 async function qboFindIncomeAccount(shop) {
   const queries = [
     `select * from Account where AccountType = 'Income' and Active = true maxresults 1`,
@@ -1924,6 +1962,51 @@ app.post('/api/mappings/:mappingId', async (req, res) => {
   })
 
   return res.json({ success: true })
+})
+
+app.get('/api/qbo-items/search', async (req, res) => {
+  if (await shouldUseDemoMode(req)) {
+    // Return demo QB items for autocomplete
+    const searchTerm = String(req.query.q || '').toLowerCase().trim()
+    const demoItems = [
+      { id: '88', name: 'Classic Tee', sku: 'TEE-001', type: 'NonInventory' },
+      { id: '102', name: 'Travel Mug', sku: 'MUG-014', type: 'NonInventory' },
+      { id: '131', name: 'Hoodie Black Medium', sku: 'HD-BLK-M', type: 'NonInventory' },
+      { id: '150', name: 'Poster Pack', sku: 'POSTER-5', type: 'NonInventory' },
+      { id: '2', name: 'Miscellaneous Service', sku: '', type: 'Service' },
+    ]
+
+    if (searchTerm) {
+      return res.json({
+        demoMode: true,
+        items: demoItems.filter(
+          (item) =>
+            item.name.toLowerCase().includes(searchTerm) ||
+            item.sku.toLowerCase().includes(searchTerm),
+        ),
+      })
+    }
+
+    return res.json({ demoMode: true, items: demoItems.slice(0, 10) })
+  }
+
+  const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop.qbo_access_token) {
+    return res.status(401).json({ error: 'QuickBooks not connected' })
+  }
+
+  const searchTerm = String(req.query.q || '').trim()
+  if (!searchTerm) {
+    return res.json({ items: [] })
+  }
+
+  try {
+    const items = await qboSearchItems(activeShop, searchTerm)
+    return res.json({ items })
+  } catch (error) {
+    console.error('QB item search error:', error)
+    return res.status(500).json({ error: 'Failed to search QuickBooks items' })
+  }
 })
 
 app.get('/api/settings', async (req, res) => {

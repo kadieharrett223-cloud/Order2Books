@@ -123,6 +123,8 @@ function App() {
   const [mappings, setMappings] = useState({ autoMapped: [], needsAttention: [] });
   const [mappingsLoading, setMappingsLoading] = useState(false);
   const [mappingEdits, setMappingEdits] = useState({});
+  const [mappingItemSearch, setMappingItemSearch] = useState({}); // { mappingId: searchTerm }
+  const [mappingItemSearchResults, setMappingItemSearchResults] = useState({}); // { mappingId: [items] }
   const [scanBusy, setScanBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
@@ -306,9 +308,47 @@ function App() {
       }
 
       await loadMappings();
+      setMappingItemSearch((prev) => ({ ...prev, [mappingId]: '' }));
+      setMappingItemSearchResults((prev) => ({ ...prev, [mappingId]: [] }));
     } catch {
       alert('Failed to save mapping.');
     }
+  };
+
+  const searchQboItems = async (mappingId, searchTerm) => {
+    setMappingItemSearch((prev) => ({ ...prev, [mappingId]: searchTerm }));
+
+    if (!searchTerm || searchTerm.trim().length < 2) {
+      setMappingItemSearchResults((prev) => ({ ...prev, [mappingId]: [] }));
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/api/qbo-items/search?q=${encodeURIComponent(searchTerm)}`);
+      if (!response.ok) {
+        setMappingItemSearchResults((prev) => ({ ...prev, [mappingId]: [] }));
+        return;
+      }
+
+      const data = await response.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+      setMappingItemSearchResults((prev) => ({ ...prev, [mappingId]: items }));
+    } catch {
+      setMappingItemSearchResults((prev) => ({ ...prev, [mappingId]: [] }));
+    }
+  };
+
+  const selectQboItem = (mappingId, item) => {
+    setMappingEdits((prev) => ({
+      ...prev,
+      [mappingId]: {
+        ...prev[mappingId],
+        qboItemId: String(item.id),
+        qboItemName: String(item.name),
+      },
+    }));
+    setMappingItemSearch((prev) => ({ ...prev, [mappingId]: '' }));
+    setMappingItemSearchResults((prev) => ({ ...prev, [mappingId]: [] }));
   };
 
   const runMappingScan = async () => {
@@ -1034,54 +1074,68 @@ function App() {
                       <tr>
                         <th>Shopify Product</th>
                         <th>SKU</th>
-                        <th>QuickBooks Item ID</th>
-                        <th>QuickBooks Item Name</th>
+                        <th>Select QuickBooks Item</th>
                         <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {mappings.needsAttention.length === 0 ? (
                         <tr>
-                          <td colSpan="5">{mappingsLoading ? 'Loading items...' : 'No items need attention.'}</td>
+                          <td colSpan="4">{mappingsLoading ? 'Loading items...' : 'No items need attention.'}</td>
                         </tr>
                       ) : mappings.needsAttention.map((mapping) => (
                         <tr key={mapping.id}>
                           <td>{mapping.shopifyTitle}</td>
                           <td>{mapping.shopifySku || '—'}</td>
-                          <td>
-                            <input
-                              className="form-input"
-                              style={{ minWidth: '120px' }}
-                              value={mappingEdits[mapping.id]?.qboItemId ?? mapping.qboItemId ?? ''}
-                              onChange={(e) =>
-                                setMappingEdits((prev) => ({
-                                  ...prev,
-                                  [mapping.id]: {
-                                    ...prev[mapping.id],
-                                    qboItemId: e.target.value,
-                                  },
-                                }))
-                              }
-                            />
+                          <td colSpan="2" style={{ position: 'relative' }}>
+                            <div style={{ position: 'relative' }}>
+                              <input
+                                className="form-input"
+                                style={{ width: '100%', minWidth: '250px' }}
+                                placeholder="Search QuickBooks items..."
+                                value={mappingItemSearch[mapping.id] ?? ''}
+                                onChange={(e) => searchQboItems(mapping.id, e.target.value)}
+                              />
+                              {mappingItemSearchResults[mapping.id]?.length > 0 && (
+                                <div style={{
+                                  position: 'absolute', top: '100%', left: 0, right: 0, 
+                                  background: 'white', border: '1px solid #ddd', 
+                                  borderRadius: '4px', zIndex: 1000, maxHeight: '200px', 
+                                  overflowY: 'auto', marginTop: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                }}>
+                                  {mappingItemSearchResults[mapping.id].map((item) => (
+                                    <div
+                                      key={item.id}
+                                      onClick={() => selectQboItem(mapping.id, item)}
+                                      style={{
+                                        padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #eee',
+                                        hover: { background: '#f5f5f5' }
+                                      }}
+                                      onMouseEnter={(e) => e.target.style.background = '#f5f5f5'}
+                                      onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                                    >
+                                      <strong>{item.name}</strong>
+                                      {item.sku && <span style={{ color: '#999', marginLeft: '8px', fontSize: '12px' }}>({item.sku})</span>}
+                                      <div style={{ fontSize: '11px', color: '#999' }}>ID: {item.id}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {mappingEdits[mapping.id]?.qboItemId && (
+                                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                                  Selected: <strong>{mappingEdits[mapping.id]?.qboItemName}</strong> (#{mappingEdits[mapping.id]?.qboItemId})
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td>
-                            <input
-                              className="form-input"
-                              style={{ minWidth: '180px' }}
-                              value={mappingEdits[mapping.id]?.qboItemName ?? mapping.qboItemName ?? ''}
-                              onChange={(e) =>
-                                setMappingEdits((prev) => ({
-                                  ...prev,
-                                  [mapping.id]: {
-                                    ...prev[mapping.id],
-                                    qboItemName: e.target.value,
-                                  },
-                                }))
-                              }
-                            />
-                          </td>
-                          <td>
-                            <button className="btn-action" onClick={() => saveMapping(mapping.id)}>Save</button>
+                            <button 
+                              className="btn-action" 
+                              onClick={() => saveMapping(mapping.id)}
+                              disabled={!mappingEdits[mapping.id]?.qboItemId}
+                            >
+                              Save
+                            </button>
                           </td>
                         </tr>
                       ))}
