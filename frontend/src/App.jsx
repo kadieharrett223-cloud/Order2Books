@@ -44,12 +44,12 @@ const DEFAULT_PLAN_DATA = {
     key: 'starter',
     name: 'Starter',
     priceMonthly: 9.99,
-    orderLimitPerMonth: 200,
+    orderLimitPerMonth: 100,
     usedOrdersThisMonth: 0,
-    remainingOrdersThisMonth: 200,
+    remainingOrdersThisMonth: 100,
     supportsMultiStore: false,
     features: [
-      'Up to 200 orders / month',
+      'Up to 100 auto-invoice orders / month',
       'Basic order → invoice sync',
       'Manual retry',
       'Email support',
@@ -60,9 +60,9 @@ const DEFAULT_PLAN_DATA = {
       key: 'starter',
       name: 'Starter',
       priceMonthly: 9.99,
-      orderLimitPerMonth: 200,
+      orderLimitPerMonth: 100,
       features: [
-        'Up to 200 orders / month',
+        'Up to 100 auto-invoice orders / month',
         'Basic order → invoice sync',
         'Manual retry',
         'Email support',
@@ -118,7 +118,7 @@ const TUTORIAL_STEPS = [
     page: 'dashboard',
     navTarget: null,
     title: '✅ You\'re all set!',
-    description: 'Order2Books is ready to go. Your Shopify store is already connected — just link QuickBooks and orders will sync automatically as invoices.',
+    description: 'Starter includes 100 auto-invoice orders per month. Need more? Upgrade to the Unlimited plan in payment settings.',
   },
 ];
 
@@ -482,6 +482,10 @@ function App() {
   const usedOrdersThisMonth = Number(planData.plan.usedOrdersThisMonth || 0);
   const monthlyLimit = planData.plan.orderLimitPerMonth;
   const usageRatio = monthlyLimit ? usedOrdersThisMonth / monthlyLimit : 0;
+  const remainingOrdersThisMonth = monthlyLimit == null
+    ? null
+    : Math.max(monthlyLimit - usedOrdersThisMonth, 0);
+  const showStarterOrdersBadge = planData.plan.key === 'starter' && monthlyLimit != null;
   const showUpgradeWarning = monthlyLimit != null && usageRatio >= 0.8;
   const syncedOrdersCount = syncs.filter((sync) => String(sync.syncStatus).toLowerCase() === 'synced').length;
   const invoiceCount = syncs.filter((sync) => Boolean(sync.qboInvoiceId)).length;
@@ -511,6 +515,11 @@ function App() {
           <h1 className="app-title">Order2Books <span className="title-light">Dashboard</span></h1>
         </div>
         <div className="header-actions">
+          {showStarterOrdersBadge ? (
+            <button className="starter-orders-tab" onClick={() => setActivePage('settings')}>
+              Auto-invoice left: {remainingOrdersThisMonth} / {monthlyLimit}
+            </button>
+          ) : null}
           <button className="btn-secondary" onClick={() => setActivePage('syncLog')}>
             📊 Activity
           </button>

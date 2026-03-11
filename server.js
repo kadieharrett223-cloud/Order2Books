@@ -43,9 +43,9 @@ const PLAN_CONFIG = {
     key: 'starter',
     name: 'Starter',
     priceMonthly: 9.99,
-    orderLimitPerMonth: 200,
+    orderLimitPerMonth: 100,
     features: [
-      'Up to 200 orders / month',
+      'Up to 100 auto-invoice orders / month',
       'Basic order → invoice sync',
       'Manual retry',
       'Email support',
