@@ -99,32 +99,26 @@ const TUTORIAL_STEPS = [
   {
     page: 'settings',
     navTarget: 'settings',
-    title: '🔗 Step 2 — Connect Shopify',
-    description: 'In Settings, enter your Shopify store domain and API access token to allow Order2Books to read your orders.',
-  },
-  {
-    page: 'settings',
-    navTarget: 'settings',
-    title: '📚 Step 3 — Connect QuickBooks',
-    description: 'Click "Connect QuickBooks Online" to authorize your QB account. Once connected, invoices will be created automatically for every paid Shopify order.',
+    title: '� Step 2 — Connect QuickBooks',
+    description: 'Go to Settings and click "Connect QuickBooks Online" to authorize your QB account. Once connected, invoices will be created automatically for every paid Shopify order.',
   },
   {
     page: 'dashboard',
     navTarget: 'dashboard',
-    title: '📊 Step 4 — Your Dashboard',
-    description: 'Come back here to monitor synced orders, spot errors, and search for any order by Shopify ID. The dashboard refreshes automatically every 5 minutes.',
+    title: '📊 Step 3 — Your Dashboard',
+    description: 'Monitor synced orders, spot errors, and search for any order by Shopify ID. The dashboard refreshes automatically every 5 minutes.',
   },
   {
     page: 'syncLog',
     navTarget: 'syncLog',
-    title: '📋 Step 5 — Sync Log',
+    title: '📋 Step 4 — Sync Log',
     description: 'The Sync Log shows every webhook, invoice creation, and error in detail. Use it to retry failed syncs and track exactly what happened.',
   },
   {
     page: 'dashboard',
     navTarget: null,
     title: '✅ You\'re all set!',
-    description: 'Order2Books is ready to go. Paid Shopify orders will sync to QuickBooks as invoices automatically. You can replay this tutorial any time from the sidebar.',
+    description: 'Order2Books is ready to go. Your Shopify store is already connected — just link QuickBooks and orders will sync automatically as invoices.',
   },
 ];
 
@@ -946,31 +940,20 @@ function App() {
                   <section className="section-card">
                     <h3 className="section-title">Shopify Connection</h3>
                     <div className="settings-form">
-                      <div className="form-group">
-                        <label htmlFor="shopifyDomain">Shop Domain</label>
-                        <input
-                          id="shopifyDomain"
-                          type="text"
-                          className="form-input"
-                          placeholder="your-store.myshopify.com"
-                          value={settings.shopifyDomain}
-                          disabled={demoMode}
-                          onChange={(e) => setSettings({ ...settings, shopifyDomain: e.target.value })}
-                        />
+                      <div className={`connected-status-badge ${settings.shopifyConnected ? 'connected' : 'not-connected'}`}>
+                        <span className="connected-status-icon">{settings.shopifyConnected ? '✓' : '○'}</span>
+                        <div>
+                          <div className="connected-status-label">{settings.shopifyConnected ? 'Connected to Shopify' : 'Not connected'}</div>
+                          <div className="connected-status-sub">
+                            {demoMode
+                              ? 'Demo mode — install the app on Shopify to connect your store'
+                              : settings.shopifyConnected
+                                ? `Store: ${settings.shopifyDomain || 'your Shopify store'}`
+                                : 'Install Order2Books from the Shopify App Store to connect automatically'}
+                          </div>
+                        </div>
                       </div>
-                      <div className="form-group">
-                        <label htmlFor="shopifyApiKey">API Access Token</label>
-                        <input
-                          id="shopifyApiKey"
-                          type="password"
-                          className="form-input"
-                          placeholder="shpat_xxxxx"
-                          value={settings.shopifyApiKey}
-                          disabled={demoMode}
-                          onChange={(e) => setSettings({ ...settings, shopifyApiKey: e.target.value })}
-                        />
-                      </div>
-                      <p className="form-hint">{demoMode ? 'Preview mode shows a sample Shopify store until the app is installed.' : 'Get your API credentials from Shopify Admin → Settings → Apps and sales channels → Develop apps'}</p>
+                      <p className="form-hint" style={{ marginTop: '12px' }}>Your Shopify store connects automatically when you install the app — no manual setup needed.</p>
                     </div>
                   </section>
 

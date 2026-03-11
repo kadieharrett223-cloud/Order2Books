@@ -1131,6 +1131,50 @@
   box-shadow: 0 6px 18px rgba(102, 126, 234, 0.4);
 }
 
+.connected-status-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid;
+}
+
+.connected-status-badge.connected {
+  background: rgba(67, 233, 123, 0.08);
+  border-color: rgba(67, 233, 123, 0.35);
+}
+
+.connected-status-badge.not-connected {
+  background: rgba(148, 163, 184, 0.08);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.connected-status-icon {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #43e97b;
+  flex-shrink: 0;
+}
+
+.connected-status-badge.not-connected .connected-status-icon {
+  color: #94a3b8;
+}
+
+.connected-status-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.connected-status-sub {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
 .btn-secondary-dark {
   background: rgba(0, 0, 0, 0.05);
   border: 1px solid rgba(0, 0, 0, 0.1);
