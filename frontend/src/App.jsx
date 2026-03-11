@@ -531,6 +531,9 @@ function App() {
           >
             Upgrade Mode
           </button>
+          <button className="header-primary-button" onClick={refreshAppData}>
+            Sync Now
+          </button>
         </div>
       </header>
 
@@ -613,21 +616,20 @@ function App() {
                   <span className="setup-step-icon">✓</span>
                   <span>Connect Shopify</span>
                 </div>
+                <span className="setup-step-arrow">→</span>
                 <div className="setup-step setup-step-complete">
                   <span className="setup-step-icon">✓</span>
                   <span>Connect QuickBooks</span>
                 </div>
+                <span className="setup-step-arrow">→</span>
                 <div className="setup-step setup-step-current">
-                  <span className="setup-step-icon">•</span>
+                  <span className="setup-step-icon">●</span>
                   <span>Run Discovery Steps</span>
                 </div>
+                <span className="setup-step-arrow">→</span>
                 <div className="setup-step setup-step-pending">
                   <span className="setup-step-icon">○</span>
                   <span>Start Syncing Orders</span>
-                </div>
-                <div className="setup-step setup-step-pending">
-                  <span className="setup-step-icon">○</span>
-                  <span>Pending</span>
                 </div>
               </section>
 
@@ -699,7 +701,7 @@ function App() {
                     </div>
                   </div>
                   <button className="fix-errors-button" onClick={() => setActivePage('syncLog')}>
-                    Fix All {dashboardSyncErrors} Sync Errors
+                    Fix Sync Errors
                   </button>
                 </section>
               </div>
