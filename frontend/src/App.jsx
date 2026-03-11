@@ -603,6 +603,10 @@ function App() {
               <span className="nav-icon">❓</span>
               <span className="nav-label">Help</span>
             </button>
+            <button className="nav-item" onClick={startTutorial}>
+              <span className="nav-icon">🎓</span>
+              <span className="nav-label">Tutorial</span>
+            </button>
           </nav>
           <div className="sidebar-bottom">
             <div className="user-info">
@@ -1290,13 +1294,13 @@ function App() {
       </div>
 
         {tutorialActive && TUTORIAL_STEPS[tutorialStep] && (
-          <div className="tutorial-overlay" onClick={skipTutorial}>
-            <div className="tutorial-backdrop"></div>
+            <div className="tutorial-overlay">
+              <div className="tutorial-backdrop" onClick={skipTutorial}></div>
             <div className="tutorial-spotlight" id={`tutorial-highlight-${tutorialStep}`}></div>
-            <div className="tutorial-card" id={`tutorial-card-${tutorialStep}`}>
+              <div className="tutorial-card" id={`tutorial-card-${tutorialStep}`} onClick={(event) => event.stopPropagation()}>
               <div className="tutorial-header">
                 <h3>{TUTORIAL_STEPS[tutorialStep].title}</h3>
-                <button className="tutorial-close" onClick={skipTutorial}>✕</button>
+                  <button className="tutorial-close" onClick={skipTutorial}>✕</button>
               </div>
               <p className="tutorial-description">{TUTORIAL_STEPS[tutorialStep].description}</p>
               <div className="tutorial-footer">
