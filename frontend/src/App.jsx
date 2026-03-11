@@ -83,6 +83,51 @@ const DEFAULT_PLAN_DATA = {
   ],
 };
 
+  const TUTORIAL_STEPS = [
+    {
+      page: 'dashboard',
+      title: '👋 Welcome to Order2Books',
+      description: 'Sync Shopify orders to QuickBooks automatically. Let\'s get you started!',
+      target: null,
+      position: 'center',
+    },
+    {
+      page: 'dashboard',
+      title: '📊 Dashboard Overview',
+      description: 'Here\'s where you\'ll see all your synced orders, recent activity, and sync status at a glance.',
+      target: '.page-header',
+      position: 'bottom',
+    },
+    {
+      page: 'settings',
+      title: '🔗 Connect Shopify',
+      description: 'First, connect your Shopify store by adding your store domain and API token in Settings.',
+      target: '.settings-form',
+      position: 'bottom',
+    },
+    {
+      page: 'settings',
+      title: '📚 Connect QuickBooks',
+      description: 'Then, authorize QuickBooks Online to sync invoices automatically.',
+      target: '[value="qbo"]',
+      position: 'bottom',
+    },
+    {
+      page: 'mapping',
+      title: '🧩 Product Mapping',
+      description: 'Map your Shopify products to QuickBooks items. Auto-mapped items are shown below, and any items needing attention can be manually mapped.',
+      target: '.section-card',
+      position: 'bottom',
+    },
+    {
+      page: 'dashboard',
+      title: '✅ All Set!',
+      description: 'You\'re ready to sync orders! Orders from your Shopify store will automatically be converted to invoices in QuickBooks. Use the Sync Log to track activity.',
+      target: null,
+      position: 'center',
+    },
+  ];
+
 function formatRelativeTime(value) {
   if (!value) return '—';
 
@@ -130,6 +175,8 @@ function App() {
   const [searchResult, setSearchResult] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [planData, setPlanData] = useState(DEFAULT_PLAN_DATA);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialActive, setTutorialActive] = useState(false);
 
   const loadPlan = async () => {
     try {
@@ -189,6 +236,90 @@ function App() {
 
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    // Initialize tutorial on first load
+    const tutorialCompleted = localStorage.getItem('order2books-tutorial-completed');
+    if (!tutorialCompleted) {
+      setTutorialActive(true);
+      setTutorialStep(0);
+    }
+  }, []);
+
+    useEffect(() => {
+      if (!tutorialActive || !TUTORIAL_STEPS[tutorialStep]) return;
+
+      const step = TUTORIAL_STEPS[tutorialStep];
+      const spotlight = document.getElementById(`tutorial-highlight-${tutorialStep}`);
+      const card = document.getElementById(`tutorial-card-${tutorialStep}`);
+
+      if (!spotlight || !card) return;
+
+      // Position spotlight around target
+      if (step.target) {
+        const target = document.querySelector(step.target);
+        if (target) {
+          const rect = target.getBoundingClientRect();
+          const padding = 12;
+        
+          spotlight.style.left = `${rect.left - padding + window.scrollX}px`;
+          spotlight.style.top = `${rect.top - padding + window.scrollY}px`;
+          spotlight.style.width = `${rect.width + padding * 2}px`;
+          spotlight.style.height = `${rect.height + padding * 2}px`;
+
+          // Position card near target
+          const cardRect = card.getBoundingClientRect();
+          let cardTop = rect.bottom + 20;
+          let cardLeft = rect.left + rect.width / 2 - cardRect.width / 2;
+
+          // Keep card in viewport
+          if (cardLeft < 20) cardLeft = 20;
+          if (cardLeft + cardRect.width > window.innerWidth - 20) {
+            cardLeft = window.innerWidth - cardRect.width - 20;
+          }
+          if (cardTop + cardRect.height > window.innerHeight) {
+            cardTop = rect.top - cardRect.height - 20;
+          }
+
+          card.style.left = `${cardLeft + window.scrollX}px`;
+          card.style.top = `${cardTop + window.scrollY}px`;
+        }
+      } else {
+        // Center card for center position tutorials
+        card.style.left = '50%';
+        card.style.top = '50%';
+        card.style.transform = 'translate(-50%, -50%)';
+      }
+    }, [tutorialActive, tutorialStep]);
+
+  const startTutorial = () => {
+    setTutorialActive(true);
+    setTutorialStep(0);
+    setActivePage('dashboard');
+  };
+
+  const nextTutorialStep = () => {
+    if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+      setTutorialStep(tutorialStep + 1);
+      // Auto-navigate to the relevant page
+      const nextStep = TUTORIAL_STEPS[tutorialStep + 1];
+      if (nextStep.page) {
+        setActivePage(nextStep.page);
+      }
+    } else {
+      completeTutorial();
+    }
+  };
+
+  const completeTutorial = () => {
+    setTutorialActive(false);
+    localStorage.setItem('order2books-tutorial-completed', 'true');
+  };
+
+  const skipTutorial = () => {
+    setTutorialActive(false);
+    localStorage.setItem('order2books-tutorial-completed', 'true');
+  };
 
   const refreshPlan = async () => {
     const response = await apiFetch('/api/plan');
@@ -490,7 +621,6 @@ function App() {
           <div className="page-header">
             <h2 className="page-title">
               {activePage === 'dashboard' && 'OrderBooks Dashboard'}
-              {activePage === 'syncLog' && 'Sync Log'}
               {activePage === 'settings' && 'Settings'}
               {activePage === 'mapping' && 'Product Mapping'}
               {activePage === 'help' && 'Help'}
@@ -1158,6 +1288,36 @@ function App() {
           ) : null}
         </main>
       </div>
+
+        {tutorialActive && TUTORIAL_STEPS[tutorialStep] && (
+          <div className="tutorial-overlay" onClick={skipTutorial}>
+            <div className="tutorial-backdrop"></div>
+            <div className="tutorial-spotlight" id={`tutorial-highlight-${tutorialStep}`}></div>
+            <div className="tutorial-card" id={`tutorial-card-${tutorialStep}`}>
+              <div className="tutorial-header">
+                <h3>{TUTORIAL_STEPS[tutorialStep].title}</h3>
+                <button className="tutorial-close" onClick={skipTutorial}>✕</button>
+              </div>
+              <p className="tutorial-description">{TUTORIAL_STEPS[tutorialStep].description}</p>
+              <div className="tutorial-footer">
+                <div className="tutorial-progress">
+                  {TUTORIAL_STEPS.map((_, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`tutorial-dot ${idx === tutorialStep ? 'active' : ''} ${idx < tutorialStep ? 'completed' : ''}`}
+                    />
+                  ))}
+                </div>
+                <div className="tutorial-actions">
+                  <button className="btn-text" onClick={skipTutorial}>Skip</button>
+                  <button className="btn-action" onClick={nextTutorialStep}>
+                    {tutorialStep === TUTORIAL_STEPS.length - 1 ? 'Finish' : 'Next'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       {showUpgradePanel ? (
         <div className="upgrade-modal-backdrop" onClick={() => setShowUpgradePanel(false)}>
