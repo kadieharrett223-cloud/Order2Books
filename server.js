@@ -1505,7 +1505,13 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
 
 app.get('/api/auth/qbo/start', async (req, res) => {
   try {
-    const shopDomain = String(req.query.shop || req.shopDomainFromSession || '').toLowerCase().trim()
+    const requestedShopDomain = String(req.query.shop || req.shopDomainFromSession || '').toLowerCase().trim()
+    let shopDomain = validateShopDomain(requestedShopDomain) ? requestedShopDomain : ''
+
+    if (!shopDomain) {
+      const activeShop = await getActiveInstalledShop(req)
+      shopDomain = String(activeShop?.shop_domain || '').toLowerCase().trim()
+    }
 
     if (!validateShopDomain(shopDomain)) {
       return res.status(400).json({ error: 'Missing or invalid shop domain. Expected *.myshopify.com' })
@@ -1555,6 +1561,10 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
     const shop = await db.get(`SELECT * FROM shops WHERE id = ?`, [statePayload.shopId])
 
     if (!shop) {
+      const fallbackShopDomain = String(statePayload.shop || '').toLowerCase().trim()
+      if (validateShopDomain(fallbackShopDomain)) {
+        return res.redirect(buildAppUrlFromRequest(req, `/api/auth/shopify/install?shop=${encodeURIComponent(fallbackShopDomain)}&next=qbo`))
+      }
       return res.status(404).json({ error: 'Shop not found for QuickBooks callback' })
     }
 
