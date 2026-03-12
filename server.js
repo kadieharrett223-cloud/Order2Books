@@ -111,6 +111,12 @@ function verifyShopifySession(req, res, next) {
 
   const token = getSessionTokenFromRequest(req)
   if (!token) {
+    const fallbackShop = String(req.query?.shop || '').toLowerCase().trim()
+    if (validateShopDomain(fallbackShop)) {
+      req.shopDomainFromSession = fallbackShop
+      return next()
+    }
+
     if (REQUIRE_SHOPIFY_SESSION) {
       return res.status(401).json({ error: 'Missing Shopify session token' })
     }
