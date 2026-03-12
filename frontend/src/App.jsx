@@ -100,7 +100,7 @@ const TUTORIAL_STEPS = [
     page: 'mapping',
     navTarget: 'mapping',
     title: '🧩 Step 2 — Product Mapping',
-    description: 'Start here! Map your Shopify products to QuickBooks items. Any products that couldn\'t be auto-matched show under "Items Needing Attention" — search and select the correct QB item for each.',
+    description: 'Start here! Product mapping is required before sync can work. Every Shopify product must be linked to a QuickBooks item, or invoices cannot be created for those orders. Any products that couldn\'t be auto-matched show under "Items Needing Attention" — search and select the correct QB item for each.',
   },
   {
     page: 'dashboard',
