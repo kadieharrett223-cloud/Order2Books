@@ -1419,11 +1419,13 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
       payload: { shop, scope: tokenResponse.scope },
     })
 
+    const origin = getRequestOrigin(req)
+
     if (statePayload.next === 'qbo') {
-      return res.redirect(`${APP_URL}/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`)
+      return res.redirect(`${origin}/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`)
     }
 
-    return res.redirect(`${APP_URL}/?shopify_connected=1&shop=${encodeURIComponent(shop)}`)
+    return res.redirect(`${origin}/?shopify_connected=1&shop=${encodeURIComponent(shop)}`)
   } catch (error) {
     await writeSyncLog({
       eventType: 'shopify/oauth',

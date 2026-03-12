@@ -23,15 +23,25 @@ function getCurrentShopDomain() {
 }
 
 function redirectToTop(url) {
+  let targetUrl = url;
+
+  try {
+    if (typeof window !== 'undefined') {
+      targetUrl = new URL(String(url || ''), window.location.origin).toString();
+    }
+  } catch {
+    targetUrl = url;
+  }
+
   try {
     if (typeof window !== 'undefined' && window.top && window.top !== window.self) {
-      window.top.location.href = url;
+      window.top.location.href = targetUrl;
       return;
     }
   } catch {
   }
 
-  window.location.href = url;
+  window.location.href = targetUrl;
 }
 
 async function getShopifySessionToken() {
