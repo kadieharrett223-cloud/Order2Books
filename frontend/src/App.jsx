@@ -701,9 +701,22 @@ function App() {
       return;
     }
 
-    if (!demoMode) {
-      window.location.href = '/api/auth/qbo/start';
+    if (demoMode) {
+      setVideoDemoMode(true);
+      setVideoDemoQboConnected(false);
+      setVideoDemoLoginOpen(true);
+      setVideoDemoLoginBusy(false);
+      setVideoDemoCredentials({ email: '', password: '' });
+      setVideoDemoMappings(createEmptyMappings());
+      setMappingEdits({});
+      setMappingItemSearch({});
+      setMappingItemSearchResults({});
+      setActivePage('settings');
+      setSettingsTab('general');
+      return;
     }
+
+    window.location.href = '/api/auth/qbo/start';
   };
 
   const submitVideoDemoQuickBooksLogin = () => {
@@ -889,7 +902,6 @@ function App() {
                 </div>
                 <button
                   className="btn-connect"
-                  disabled={demoMode && !videoDemoMode}
                   onClick={handleQboConnectClick}
                 >
                   {videoDemoMode
@@ -1225,7 +1237,6 @@ function App() {
                       <p className="form-hint">Connect your QuickBooks Online account to sync invoices.</p>
                       <button
                         className="btn-oauth"
-                        disabled={demoMode && !videoDemoMode}
                         onClick={handleQboConnectClick}
                       >
                         {videoDemoMode
