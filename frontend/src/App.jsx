@@ -22,6 +22,18 @@ function getCurrentShopDomain() {
   return '';
 }
 
+function redirectToTop(url) {
+  try {
+    if (typeof window !== 'undefined' && window.top && window.top !== window.self) {
+      window.top.location.href = url;
+      return;
+    }
+  } catch {
+  }
+
+  window.location.href = url;
+}
+
 async function getShopifySessionToken() {
   try {
     if (typeof window !== 'undefined' && window.shopify && typeof window.shopify.idToken === 'function') {
@@ -294,7 +306,7 @@ function App() {
       }
 
       sessionStorage.setItem(installGuardKey, 'true');
-      window.location.href = `/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`;
+      redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
     } catch {
     }
   }, [settingsLoaded, settings.shopifyConnected]);
@@ -577,11 +589,11 @@ function App() {
   const handleQboConnectClick = () => {
     const shop = getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
     if (shop && shop.endsWith('.myshopify.com')) {
-      window.location.href = `/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`;
+      redirectToTop(`/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`);
       return;
     }
 
-    window.location.href = '/api/auth/qbo/start';
+    redirectToTop('/api/auth/qbo/start');
   };
 
   return (
