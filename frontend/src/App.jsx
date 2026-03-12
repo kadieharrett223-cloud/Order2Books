@@ -365,7 +365,7 @@ function App() {
 
         if (cancelled) return;
         sessionStorage.setItem(installGuardKey, String(now));
-        redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}&next=qbo`);
+        redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
       } catch {
       }
     };
@@ -685,7 +685,7 @@ function App() {
   const handleShopifyConnectClick = () => {
     const shop = getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
     if (shop && shop.endsWith('.myshopify.com')) {
-      redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}&next=qbo`);
+      redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
       return;
     }
 

@@ -1456,7 +1456,7 @@ app.get('/api/auth/shopify/install', async (req, res) => {
     }
 
     const shop = String(req.query.shop || '').trim().toLowerCase()
-    const next = String(req.query.next || 'qbo').trim().toLowerCase()
+    const next = String(req.query.next || '').trim().toLowerCase()
 
     if (!validateShopDomain(shop)) {
       return res.status(400).json({ error: 'Invalid shop domain. Expected *.myshopify.com' })
