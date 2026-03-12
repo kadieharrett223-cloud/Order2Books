@@ -1074,35 +1074,51 @@ function App() {
                 <section className="section-card">
                   <h3 className="section-title">Privacy Policy</h3>
                   <div className="legal-content">
-                    <p><strong>Last Updated:</strong> March 9, 2026</p>
-                    <p>Order2Books ("we", "our", "us") respects your privacy. This Policy explains how information is collected and used when you install and use the App.</p>
+                    <p><strong>Last Updated:</strong> March 12, 2026</p>
+                    <p>This Privacy Policy describes how Order2Books ("the App", "we", "our", or "us") collects, uses, and protects information when merchants install and use our Shopify application.</p>
 
                     <h4>1. Information We Collect</h4>
-                    <p>We collect only information necessary to operate synchronization services, including Shopify store domain, required Shopify order data, required QuickBooks customer/invoice data, and app configuration settings.</p>
+                    <p>When you install and use the App, we may collect the following information from your Shopify store:</p>
+                    <p>Store information (store name, store domain, email address)</p>
+                    <p>Shopify order data necessary to generate accounting records</p>
+                    <p>Invoice and transaction data related to synced orders</p>
+                    <p>App usage data needed to operate and improve the service</p>
+                    <p>We only collect the information required to provide the functionality of the App.</p>
 
-                    <h4>2. How We Use Information</h4>
-                    <p>Collected data is used only to synchronize Shopify and QuickBooks data, maintain integration connections, and provide technical support.</p>
+                    <h4>2. How We Use Your Information</h4>
+                    <p>We use the collected information to:</p>
+                    <p>Sync Shopify orders to your accounting system</p>
+                    <p>Generate invoices or bookkeeping records</p>
+                    <p>Maintain the connection between Shopify and your accounting platform</p>
+                    <p>Provide support and improve the App's functionality</p>
+                    <p>Ensure reliable and secure operation of the service</p>
+                    <p>We do not sell or rent merchant data.</p>
 
-                    <h4>3. Data Storage</h4>
-                    <p>Data may be temporarily stored to process synchronization tasks. We do not sell or rent merchant data.</p>
+                    <h4>3. Data Sharing</h4>
+                    <p>We only share data when necessary to operate the App:</p>
+                    <p>With your connected accounting platform (such as QuickBooks or similar) to create invoices and records</p>
+                    <p>With secure infrastructure providers that host and operate the App</p>
+                    <p>When required by law or to protect the security of our service</p>
+                    <p>We do not share personal or store data for advertising purposes.</p>
 
-                    <h4>4. Third-Party Services</h4>
-                    <p>The App integrates with Shopify and QuickBooks Online, which operate under their own privacy policies.</p>
+                    <h4>4. Data Storage and Security</h4>
+                    <p>We implement industry-standard security measures to protect merchant data. This includes secure servers, encrypted communication, and access controls designed to prevent unauthorized access.</p>
+                    <p>Data is only retained for as long as necessary to operate the App and provide its services.</p>
 
-                    <h4>5. Data Security</h4>
-                    <p>We implement reasonable security measures to protect data used by the App; however, no transmission or storage system can be guaranteed 100% secure.</p>
+                    <h4>5. Merchant Rights</h4>
+                    <p>Merchants may request access to, correction of, or deletion of their stored data at any time by contacting us.</p>
+                    <p>If the App is uninstalled, we will remove stored store data within a reasonable time unless required to retain it for legal or operational purposes.</p>
 
-                    <h4>6. Data Retention</h4>
-                    <p>We retain data only as long as necessary to provide synchronization services and comply with legal obligations.</p>
+                    <h4>6. Third-Party Services</h4>
+                    <p>The App may connect with third-party services such as accounting software. These services have their own privacy policies, and we encourage merchants to review them.</p>
 
-                    <h4>7. User Responsibilities</h4>
-                    <p>Users remain responsible for reviewing accounting records in QuickBooks and Shopify. Changes made directly in QuickBooks may take up to 24 hours to appear in the App.</p>
+                    <h4>7. Changes to This Policy</h4>
+                    <p>We may update this Privacy Policy from time to time. When updates occur, the "Last updated" date will be revised.</p>
 
-                    <h4>8. Changes to This Policy</h4>
-                    <p>We may update this Policy periodically. Updates are posted with a revised "Last Updated" date.</p>
-
-                    <h4>9. Contact</h4>
-                    <p>Order2Books<br />kadie@olympic-equipment.com</p>
+                    <h4>8. Contact Information</h4>
+                    <p>If you have questions about this Privacy Policy or your data, please contact:</p>
+                    <p>Email: kadie@olympic-equipment.com</p>
+                    <p>Company: Order2Books</p>
                   </div>
                 </section>
               ) : null}
