@@ -72,15 +72,15 @@ const ALLOW_DEV_WEBHOOK_WITHOUT_HMAC = process.env.ALLOW_DEV_WEBHOOK_WITHOUT_HMA
 const COMPLIANCE_WEBHOOKS = [
   {
     topic: 'customers/data_request',
-    path: '/webhooks/customers/data_request',
+    path: '/api/webhooks/customers-data-request',
   },
   {
     topic: 'customers/redact',
-    path: '/webhooks/customers/redact',
+    path: '/api/webhooks/customers-redact',
   },
   {
     topic: 'shop/redact',
-    path: '/webhooks/shop/redact',
+    path: '/api/webhooks/shop-redact',
   },
 ]
 
@@ -1248,7 +1248,7 @@ function createComplianceWebhookHandler(topic) {
 
     try {
       ensureWebhookSignature(req)
-      res.status(200).json({ success: true })
+      res.status(200).send('Webhook received')
 
       void (async () => {
         const shop = shopDomain ? await getShopByDomain(shopDomain) : null
@@ -2141,6 +2141,10 @@ const shopRedactWebhookHandler = createComplianceWebhookHandler('shop/redact')
 app.post('/webhooks/customers/data_request', customersDataRequestWebhookHandler)
 app.post('/webhooks/customers/redact', customersRedactWebhookHandler)
 app.post('/webhooks/shop/redact', shopRedactWebhookHandler)
+
+app.post('/api/webhooks/customers-data-request', customersDataRequestWebhookHandler)
+app.post('/api/webhooks/customers-redact', customersRedactWebhookHandler)
+app.post('/api/webhooks/shop-redact', shopRedactWebhookHandler)
 
 app.post('/api/webhooks/shopify/customers-data-request', customersDataRequestWebhookHandler)
 app.post('/api/webhooks/shopify/customers-redact', customersRedactWebhookHandler)
