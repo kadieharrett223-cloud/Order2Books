@@ -644,7 +644,13 @@ function App() {
       qboConnected: videoDemoQboConnected,
       qboCompanyName: videoDemoQboConnected ? 'Demo QuickBooks Company' : '',
     }
-    : settings;
+    : demoMode
+      ? {
+        ...settings,
+        qboConnected: false,
+        qboCompanyName: '',
+      }
+      : settings;
   const effectiveMappings = videoDemoMode ? videoDemoMappings : mappings;
   const disconnectedCount = effectiveSettings.qboConnected ? 0 : 1;
   const lastSync = syncs[0]?.syncedAt || null;
