@@ -20,7 +20,9 @@ if (APP_URL) {
 }
 
 if (!APP_URL) {
-  if (process.env.VERCEL_URL) {
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    APP_URL = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  } else if (process.env.VERCEL_URL) {
     APP_URL = `https://${process.env.VERCEL_URL}`
   } else {
     APP_URL = `http://localhost:${port}`
@@ -220,6 +222,16 @@ function buildAppUrlFromRequest(req, pathname) {
   const envOrigin = String(APP_URL || '').replace(/\/+$/, '')
   const baseUrl = /admin\.shopify\.com/i.test(envOrigin) || !envOrigin ? requestOrigin : envOrigin
   return `${baseUrl}${normalizedPath}`
+}
+
+function shouldRedirectToCanonicalAppOrigin(req) {
+  const requestOrigin = String(getRequestOrigin(req) || '').replace(/\/+$/, '')
+  const appOrigin = String(APP_URL || '').replace(/\/+$/, '')
+  if (!requestOrigin || !appOrigin) {
+    return false
+  }
+
+  return requestOrigin.toLowerCase() !== appOrigin.toLowerCase()
 }
 
 function qboApiBaseUrl() {
@@ -1414,6 +1426,10 @@ app.post('/api/plan/upgrade', async (req, res) => {
 
 app.get('/api/auth/shopify/install', async (req, res) => {
   try {
+    if (shouldRedirectToCanonicalAppOrigin(req)) {
+      return res.redirect(buildAppUrlFromRequest(req, `/api/auth/shopify/install?${new URLSearchParams(req.query).toString()}`))
+    }
+
     const shop = String(req.query.shop || '').trim().toLowerCase()
     const next = String(req.query.next || 'qbo').trim().toLowerCase()
 
@@ -1534,6 +1550,10 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
 
 app.get('/api/auth/qbo/start', async (req, res) => {
   try {
+    if (shouldRedirectToCanonicalAppOrigin(req)) {
+      return res.redirect(buildAppUrlFromRequest(req, `/api/auth/qbo/start?${new URLSearchParams(req.query).toString()}`))
+    }
+
     const requestedShopDomain = String(req.query.shop || req.shopDomainFromSession || '').toLowerCase().trim()
     let shopDomain = validateShopDomain(requestedShopDomain) ? requestedShopDomain : ''
 
