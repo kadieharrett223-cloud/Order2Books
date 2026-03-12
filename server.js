@@ -238,12 +238,6 @@ function verifyShopifyCallbackHmac(queryParams) {
   return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(String(queryParams.hmac || '')))
 }
 
-function verifyShopifyCallbackHmac(queryParams) {
-
-  const digest = crypto.createHmac('sha256', SHOPIFY_API_SECRET).update(message).digest('hex')
-  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(String(queryParams.hmac || '')))
-}
-
 async function writeSyncLog({ shopId = null, shopifyOrderId = null, eventType, status, message, payload }) {
   const db = await getDb()
   await db.run(
