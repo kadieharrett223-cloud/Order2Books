@@ -3,6 +3,7 @@ const cors = require('cors')
 const crypto = require('crypto')
 const jwt = require('jsonwebtoken')
 const { migrate, getDb } = require('./db')
+const { verifyShopifyWebhookHmac: verifyWebhookHmac, ensureWebhookSignature: ensureWebhookSigUtil } = require('./lib/verifyShopifyWebhook')
 require('dotenv').config()
 
 const app = express()
@@ -218,36 +219,10 @@ function verifyShopifyCallbackHmac(queryParams) {
   return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(String(queryParams.hmac || '')))
 }
 
-function verifyShopifyWebhookHmac(req) {
-  const header = String(req.get('x-shopify-hmac-sha256') || '').trim()
-  if (!header || !SHOPIFY_API_SECRET || !Buffer.isBuffer(req.rawBody)) {
-    return false
-  }
+function verifyShopifyCallbackHmac(queryParams) {
 
-  const digest = crypto
-    .createHmac('sha256', SHOPIFY_API_SECRET)
-    .update(req.rawBody)
-    .digest('base64')
-
-  const received = Buffer.from(header, 'utf8')
-  const expected = Buffer.from(digest, 'utf8')
-
-  if (received.length !== expected.length) {
-    return false
-  }
-
-  try {
-    return crypto.timingSafeEqual(received, expected)
-  } catch {
-    return false
-  }
-}
-
-function ensureWebhookSignature(req) {
-  const webhookIsValid = verifyShopifyWebhookHmac(req)
-  if (!webhookIsValid && !ALLOW_DEV_WEBHOOK_WITHOUT_HMAC) {
-    throw new Error('Invalid Shopify webhook HMAC')
-  }
+  const digest = crypto.createHmac('sha256', SHOPIFY_API_SECRET).update(message).digest('hex')
+  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(String(queryParams.hmac || '')))
 }
 
 async function writeSyncLog({ shopId = null, shopifyOrderId = null, eventType, status, message, payload }) {
@@ -1247,7 +1222,7 @@ function createComplianceWebhookHandler(topic) {
     const shopDomain = String(req.get('x-shopify-shop-domain') || payload?.shop_domain || '').toLowerCase().trim()
 
     try {
-      ensureWebhookSignature(req)
+      ensureWebhookSigUtil(req, SHOPIFY_API_SECRET, ALLOW_DEV_WEBHOOK_WITHOUT_HMAC)
       res.status(200).send('Webhook received')
 
       void (async () => {
@@ -2080,7 +2055,7 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
 
 app.post('/api/webhooks/shopify/refunds-create', async (req, res) => {
   try {
-    ensureWebhookSignature(req)
+    ensureWebhookSigUtil(req, SHOPIFY_API_SECRET, ALLOW_DEV_WEBHOOK_WITHOUT_HMAC)
 
     const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shopDomain || '').toLowerCase().trim()
     const shop = shopDomain ? await getShopByDomain(shopDomain) : null
@@ -2108,7 +2083,7 @@ app.post('/api/webhooks/shopify/refunds-create', async (req, res) => {
 
 app.post('/api/webhooks/shopify/app-uninstalled', async (req, res) => {
   try {
-    ensureWebhookSignature(req)
+    ensureWebhookSigUtil(req, SHOPIFY_API_SECRET, ALLOW_DEV_WEBHOOK_WITHOUT_HMAC)
 
     const shopDomain = String(req.get('x-shopify-shop-domain') || req.body?.shop_domain || '').toLowerCase().trim()
     await markShopUninstalled(shopDomain)
