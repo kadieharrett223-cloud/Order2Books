@@ -1413,7 +1413,31 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
       return res.status(401).json({ error: 'Invalid Shopify callback HMAC' })
     }
 
-    const tokenResponse = await exchangeShopifyCodeForToken({ shop, code })
+    let tokenResponse = null
+    try {
+      tokenResponse = await exchangeShopifyCodeForToken({ shop, code })
+    } catch (error) {
+      const errorText = String(error?.message || error || '').toLowerCase()
+      const isCodeAlreadyUsed =
+        errorText.includes('authorization code was not found or was already used') ||
+        errorText.includes('oauth error invalid_request')
+
+      if (!isCodeAlreadyUsed) {
+        throw error
+      }
+
+      const existingShop = await getShopByDomain(shop)
+      if (!existingShop?.shopify_access_token || !existingShop?.is_installed) {
+        throw error
+      }
+
+      const origin = getRequestOrigin(req)
+      if (statePayload.next === 'qbo') {
+        return res.redirect(`${origin}/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`)
+      }
+
+      return res.redirect(`${origin}/?shopify_connected=1&shop=${encodeURIComponent(shop)}`)
+    }
 
     try {
       await registerComplianceWebhooks({
