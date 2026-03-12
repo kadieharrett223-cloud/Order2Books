@@ -14,6 +14,23 @@ async function getShopifySessionToken() {
 
 async function apiFetch(url, options = {}) {
   const headers = new Headers(options.headers || {});
+  let requestUrl = url;
+
+  try {
+    if (typeof window !== 'undefined' && typeof url === 'string' && url.startsWith('/api/')) {
+      const currentParams = new URLSearchParams(window.location.search);
+      const shop = String(currentParams.get('shop') || '').trim().toLowerCase();
+
+      if (shop && shop.endsWith('.myshopify.com')) {
+        const request = new URL(url, window.location.origin);
+        if (!request.searchParams.has('shop')) {
+          request.searchParams.set('shop', shop);
+          requestUrl = `${request.pathname}${request.search}`;
+        }
+      }
+    }
+  } catch {
+  }
 
   const sessionToken = await getShopifySessionToken();
   if (sessionToken) {
@@ -21,7 +38,7 @@ async function apiFetch(url, options = {}) {
     headers.set('X-Shopify-Session-Token', sessionToken);
   }
 
-  return fetch(url, {
+  return fetch(requestUrl, {
     ...options,
     headers,
   });

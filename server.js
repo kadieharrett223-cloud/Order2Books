@@ -286,7 +286,9 @@ async function getCaptureMode() {
 
 async function getActiveInstalledShop(req) {
   const db = await getDb()
-  const requestedShopDomain = String(req?.shopDomainFromSession || '').toLowerCase().trim()
+  const shopFromSession = String(req?.shopDomainFromSession || '').toLowerCase().trim()
+  const shopFromQuery = String(req?.query?.shop || '').toLowerCase().trim()
+  const requestedShopDomain = shopFromSession || (validateShopDomain(shopFromQuery) ? shopFromQuery : '')
 
   if (!requestedShopDomain) {
     return null
