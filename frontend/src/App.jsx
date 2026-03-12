@@ -240,6 +240,9 @@ function App() {
     }
   });
   const [videoDemoQboConnected, setVideoDemoQboConnected] = useState(false);
+  const [videoDemoLoginOpen, setVideoDemoLoginOpen] = useState(false);
+  const [videoDemoLoginBusy, setVideoDemoLoginBusy] = useState(false);
+  const [videoDemoCredentials, setVideoDemoCredentials] = useState({ email: '', password: '' });
   const [videoDemoMappings, setVideoDemoMappings] = useState(() => createEmptyMappings());
   const [mappings, setMappings] = useState({ autoMapped: [], needsAttention: [] });
   const [mappingsLoading, setMappingsLoading] = useState(false);
@@ -665,6 +668,9 @@ function App() {
 
     if (nextMode) {
       setVideoDemoQboConnected(false);
+      setVideoDemoLoginOpen(false);
+      setVideoDemoLoginBusy(false);
+      setVideoDemoCredentials({ email: '', password: '' });
       setVideoDemoMappings(createEmptyMappings());
       setActivePage('settings');
       setSettingsTab('general');
@@ -673,14 +679,36 @@ function App() {
 
   const handleQboConnectClick = () => {
     if (videoDemoMode) {
-      setVideoDemoQboConnected(true);
-      setVideoDemoMappings(createVideoDemoMappings());
+      if (!videoDemoQboConnected) {
+        setVideoDemoLoginOpen(true);
+      }
       return;
     }
 
     if (!demoMode) {
       window.location.href = '/api/auth/qbo/start';
     }
+  };
+
+  const submitVideoDemoQuickBooksLogin = () => {
+    if (!videoDemoMode) return;
+
+    const email = String(videoDemoCredentials.email || '').trim();
+    const password = String(videoDemoCredentials.password || '').trim();
+    if (!email || !password) {
+      alert('Enter a demo email and password to continue.');
+      return;
+    }
+
+    setVideoDemoLoginBusy(true);
+    window.setTimeout(() => {
+      setVideoDemoQboConnected(true);
+      setVideoDemoMappings(createVideoDemoMappings());
+      setVideoDemoLoginOpen(false);
+      setVideoDemoLoginBusy(false);
+      setVideoDemoCredentials({ email: '', password: '' });
+      alert('Demo QuickBooks connected. Sample products are ready for mapping.');
+    }, 700);
   };
 
   return (
@@ -1140,6 +1168,9 @@ function App() {
                             onClick={() => {
                               setVideoDemoMappings(createEmptyMappings());
                               setVideoDemoQboConnected(false);
+                              setVideoDemoLoginOpen(false);
+                              setVideoDemoLoginBusy(false);
+                              setVideoDemoCredentials({ email: '', password: '' });
                               setMappingEdits({});
                               setMappingItemSearch({});
                               setMappingItemSearchResults({});
@@ -1189,6 +1220,59 @@ function App() {
                               ? '✓ Connected to QuickBooks'
                               : '🔗 Connect QuickBooks Online'}
                       </button>
+
+                      {videoDemoMode && !effectiveSettings.qboConnected && videoDemoLoginOpen ? (
+                        <div style={{ marginTop: '12px', display: 'grid', gap: '8px', maxWidth: '420px' }}>
+                          <input
+                            className="form-input"
+                            placeholder="Demo QuickBooks email"
+                            value={videoDemoCredentials.email}
+                            onChange={(event) => setVideoDemoCredentials((prev) => ({ ...prev, email: event.target.value }))}
+                          />
+                          <input
+                            className="form-input"
+                            type="password"
+                            placeholder="Demo QuickBooks password"
+                            value={videoDemoCredentials.password}
+                            onChange={(event) => setVideoDemoCredentials((prev) => ({ ...prev, password: event.target.value }))}
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn-action" onClick={submitVideoDemoQuickBooksLogin} disabled={videoDemoLoginBusy}>
+                              {videoDemoLoginBusy ? 'Connecting...' : 'Sign In (Demo)'}
+                            </button>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => {
+                                setVideoDemoLoginOpen(false);
+                                setVideoDemoCredentials({ email: '', password: '' });
+                              }}
+                              disabled={videoDemoLoginBusy}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          <p className="form-hint">Any fake credentials will work in demo mode.</p>
+                        </div>
+                      ) : null}
+
+                      {videoDemoMode && effectiveSettings.qboConnected ? (
+                        <div style={{ marginTop: '10px' }}>
+                          <button
+                            className="btn-secondary"
+                            onClick={() => {
+                              setVideoDemoQboConnected(false);
+                              setVideoDemoLoginOpen(false);
+                              setVideoDemoCredentials({ email: '', password: '' });
+                              setVideoDemoMappings(createEmptyMappings());
+                              setMappingEdits({});
+                              setMappingItemSearch({});
+                              setMappingItemSearchResults({});
+                            }}
+                          >
+                            Disconnect Demo QuickBooks
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </section>
 
