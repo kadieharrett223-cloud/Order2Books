@@ -237,6 +237,16 @@ function buildAppUrlFromRequest(req, pathname) {
   return `${baseUrl}${normalizedPath}`
 }
 
+function buildEmbeddedShopifyAppUrl(shopDomain, query = {}) {
+  const normalizedShopDomain = String(shopDomain || '').trim().toLowerCase()
+  if (!validateShopDomain(normalizedShopDomain) || !SHOPIFY_API_KEY) {
+    return ''
+  }
+
+  const qs = new URLSearchParams(query).toString()
+  return `https://${normalizedShopDomain}/admin/apps/${encodeURIComponent(SHOPIFY_API_KEY)}${qs ? `?${qs}` : ''}`
+}
+
 function shouldRedirectToCanonicalAppOrigin(req) {
   const requestOrigin = String(getRequestOrigin(req) || '').replace(/\/+$/, '')
   const appOrigin = String(APP_URL || '').replace(/\/+$/, '')
@@ -1526,6 +1536,14 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
         return res.redirect(buildAppUrlFromRequest(req, `/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
       }
 
+      const embeddedAppUrl = buildEmbeddedShopifyAppUrl(shop, {
+        shopify_connected: '1',
+        shop,
+      })
+      if (embeddedAppUrl) {
+        return res.redirect(embeddedAppUrl)
+      }
+
       return res.redirect(buildAppUrlFromRequest(req, `/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
     }
 
@@ -1559,6 +1577,14 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
 
     if (shouldStartQbo && !isQboConnected) {
       return res.redirect(buildAppUrlFromRequest(req, `/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
+    }
+
+    const embeddedAppUrl = buildEmbeddedShopifyAppUrl(shop, {
+      shopify_connected: '1',
+      shop,
+    })
+    if (embeddedAppUrl) {
+      return res.redirect(embeddedAppUrl)
     }
 
     return res.redirect(buildAppUrlFromRequest(req, `/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
