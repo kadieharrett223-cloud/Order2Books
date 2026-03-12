@@ -1,6 +1,27 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 
+const SHOP_STORAGE_KEY = 'order2books-active-shop';
+
+function getCurrentShopDomain() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = String(params.get('shop') || '').trim().toLowerCase();
+    if (fromQuery && fromQuery.endsWith('.myshopify.com')) {
+      sessionStorage.setItem(SHOP_STORAGE_KEY, fromQuery);
+      return fromQuery;
+    }
+
+    const fromStorage = String(sessionStorage.getItem(SHOP_STORAGE_KEY) || '').trim().toLowerCase();
+    if (fromStorage && fromStorage.endsWith('.myshopify.com')) {
+      return fromStorage;
+    }
+  } catch {
+  }
+
+  return '';
+}
+
 async function getShopifySessionToken() {
   try {
     if (typeof window !== 'undefined' && window.shopify && typeof window.shopify.idToken === 'function') {
@@ -18,8 +39,7 @@ async function apiFetch(url, options = {}) {
 
   try {
     if (typeof window !== 'undefined' && typeof url === 'string' && url.startsWith('/api/')) {
-      const currentParams = new URLSearchParams(window.location.search);
-      const shop = String(currentParams.get('shop') || '').trim().toLowerCase();
+      const shop = getCurrentShopDomain();
 
       if (shop && shop.endsWith('.myshopify.com')) {
         const request = new URL(url, window.location.origin);
@@ -544,6 +564,12 @@ function App() {
   const recentTableSyncs = visibleSyncs.slice(0, 5);
 
   const handleQboConnectClick = () => {
+    const shop = getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
+    if (shop && shop.endsWith('.myshopify.com')) {
+      window.location.href = `/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`;
+      return;
+    }
+
     window.location.href = '/api/auth/qbo/start';
   };
 
