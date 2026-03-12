@@ -1541,7 +1541,7 @@ app.get('/api/auth/qbo/start', async (req, res) => {
     const shop = await getShopByDomain(shopDomain)
 
     if (!shop) {
-      return res.redirect(`/api/auth/shopify/install?shop=${encodeURIComponent(shopDomain)}&next=qbo`)
+      return res.redirect(buildAppUrlFromRequest(req, `/api/auth/shopify/install?shop=${encodeURIComponent(shopDomain)}&next=qbo`))
     }
 
     if (!QBO_CLIENT_ID) {
@@ -1579,14 +1579,23 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
     }
 
     const db = await getDb()
-    const shop = await db.get(`SELECT * FROM shops WHERE id = ?`, [statePayload.shopId])
+    const stateShopDomain = String(statePayload.shop || '').toLowerCase().trim()
+
+    let shop = null
+    if (validateShopDomain(stateShopDomain)) {
+      shop = await getShopByDomain(stateShopDomain)
+    }
+
+    if (!shop && statePayload.shopId) {
+      shop = await db.get(`SELECT * FROM shops WHERE id = ?`, [statePayload.shopId])
+    }
 
     if (!shop) {
       const fallbackShopDomain = String(statePayload.shop || '').toLowerCase().trim()
       if (validateShopDomain(fallbackShopDomain)) {
         return res.redirect(buildAppUrlFromRequest(req, `/api/auth/shopify/install?shop=${encodeURIComponent(fallbackShopDomain)}&next=qbo`))
       }
-      return res.status(404).json({ error: 'Shop not found for QuickBooks callback' })
+      return res.status(404).json({ error: 'Shop not found. Complete Shopify OAuth first.' })
     }
 
     const realmId = String(
@@ -1601,7 +1610,7 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
         message: 'QuickBooks callback missing realmId',
         payload: req.query,
       })
-      return res.redirect(`${APP_URL}/?qbo_error=missing_realm&shop=${encodeURIComponent(shop.shop_domain)}`)
+      return res.redirect(buildAppUrlFromRequest(req, `/?qbo_error=missing_realm&shop=${encodeURIComponent(shop.shop_domain)}`))
     }
 
     const token = await exchangeQboCodeForToken({ code, redirectUri: buildQboCallbackUrl(req) })
@@ -1628,7 +1637,7 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
       console.error('Post-install mapping scan failed:', error)
     })
 
-    return res.redirect(`${APP_URL}/?qbo_connected=1&shop=${encodeURIComponent(shop.shop_domain)}`)
+    return res.redirect(buildAppUrlFromRequest(req, `/?qbo_connected=1&shop=${encodeURIComponent(shop.shop_domain)}`))
   } catch (error) {
     await writeSyncLog({
       eventType: 'qbo/oauth',
