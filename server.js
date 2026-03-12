@@ -496,6 +496,11 @@ async function shopifyAdminRequest({ shopDomain, accessToken, method, path, body
   return response.json()
 }
 
+function isUnsupportedComplianceTopicError(error) {
+  const message = String(error?.message || error || '').toLowerCase()
+  return message.includes('could not find the webhook topic')
+}
+
 async function registerComplianceWebhooks({ shopDomain, accessToken }) {
   const existingResponse = await shopifyAdminRequest({
     shopDomain,
@@ -517,36 +522,52 @@ async function registerComplianceWebhooks({ shopDomain, accessToken }) {
         continue
       }
 
+      try {
+        await shopifyAdminRequest({
+          shopDomain,
+          accessToken,
+          method: 'PUT',
+          path: `/webhooks/${existingWebhook.id}.json`,
+          body: {
+            webhook: {
+              id: existingWebhook.id,
+              address: callbackUrl,
+              format: 'json',
+            },
+          },
+        })
+      } catch (error) {
+        if (isUnsupportedComplianceTopicError(error)) {
+          console.warn(`Skipping unsupported compliance webhook topic: ${webhook.topic}`)
+          continue
+        }
+        throw error
+      }
+
+      continue
+    }
+
+    try {
       await shopifyAdminRequest({
         shopDomain,
         accessToken,
-        method: 'PUT',
-        path: `/webhooks/${existingWebhook.id}.json`,
+        method: 'POST',
+        path: '/webhooks.json',
         body: {
           webhook: {
-            id: existingWebhook.id,
+            topic: webhook.topic,
             address: callbackUrl,
             format: 'json',
           },
         },
       })
-
-      continue
+    } catch (error) {
+      if (isUnsupportedComplianceTopicError(error)) {
+        console.warn(`Skipping unsupported compliance webhook topic: ${webhook.topic}`)
+        continue
+      }
+      throw error
     }
-
-    await shopifyAdminRequest({
-      shopDomain,
-      accessToken,
-      method: 'POST',
-      path: '/webhooks.json',
-      body: {
-        webhook: {
-          topic: webhook.topic,
-          address: callbackUrl,
-          format: 'json',
-        },
-      },
-    })
   }
 }
 
@@ -1394,10 +1415,14 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
 
     const tokenResponse = await exchangeShopifyCodeForToken({ shop, code })
 
-    await registerComplianceWebhooks({
-      shopDomain: shop,
-      accessToken: tokenResponse.access_token,
-    })
+    try {
+      await registerComplianceWebhooks({
+        shopDomain: shop,
+        accessToken: tokenResponse.access_token,
+      })
+    } catch (error) {
+      console.warn('Compliance webhook registration failed (continuing OAuth):', error?.message || error)
+    }
 
     const savedShop = await upsertShopFromShopifyOAuth({
       shopDomain: shop,
