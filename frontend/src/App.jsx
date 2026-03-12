@@ -402,6 +402,11 @@ function App() {
   };
 
   const handleSearch = async () => {
+    if ((demoMode || videoDemoMode) && !videoDemoQboConnected) {
+      setSearchResult({ error: 'Connect QuickBooks first to load order activity.' });
+      return;
+    }
+
     if (!searchQuery.trim()) {
       setSearchResult(null);
       return;
@@ -641,13 +646,6 @@ function App() {
     : Math.max(monthlyLimit - usedOrdersThisMonth, 0);
   const showStarterOrdersBadge = planData.plan.key === 'starter' && monthlyLimit != null;
   const showUpgradeWarning = monthlyLimit != null && usageRatio >= 0.8;
-  const syncedOrdersCount = syncs.filter((sync) => String(sync.syncStatus).toLowerCase() === 'synced').length;
-  const invoiceCount = syncs.filter((sync) => Boolean(sync.qboInvoiceId)).length;
-  const syncErrorCount = syncs.filter((sync) => String(sync.syncStatus).toLowerCase().includes('fail')).length;
-  const attentionCount = syncs.filter((sync) => {
-    const status = String(sync.syncStatus || '').toLowerCase();
-    return status && status !== 'synced' && status !== 'success';
-  }).length;
   const effectiveSettings = videoDemoMode
     ? {
       ...settings,
@@ -661,19 +659,29 @@ function App() {
         qboCompanyName: '',
       }
       : settings;
+  const hideMockDataUntilConnected = (demoMode || videoDemoMode) && !effectiveSettings.qboConnected;
+  const visibleSyncs = hideMockDataUntilConnected ? [] : syncs;
+  const visibleLogs = hideMockDataUntilConnected ? [] : logs;
+  const syncedOrdersCount = visibleSyncs.filter((sync) => String(sync.syncStatus).toLowerCase() === 'synced').length;
+  const invoiceCount = visibleSyncs.filter((sync) => Boolean(sync.qboInvoiceId)).length;
+  const syncErrorCount = visibleSyncs.filter((sync) => String(sync.syncStatus).toLowerCase().includes('fail')).length;
+  const attentionCount = visibleSyncs.filter((sync) => {
+    const status = String(sync.syncStatus || '').toLowerCase();
+    return status && status !== 'synced' && status !== 'success';
+  }).length;
   const effectiveMappings = videoDemoMode ? videoDemoMappings : mappings;
   const disconnectedCount = effectiveSettings.qboConnected ? 0 : 1;
-  const lastSync = syncs[0]?.syncedAt || null;
-  const recentSyncCount = syncs.filter((sync) => {
+  const lastSync = visibleSyncs[0]?.syncedAt || null;
+  const recentSyncCount = visibleSyncs.filter((sync) => {
     if (!sync.syncedAt) return false;
     return Date.now() - new Date(sync.syncedAt).getTime() <= 24 * 60 * 60 * 1000;
   }).length;
-  const recentInvoiceCount = syncs.filter((sync) => {
+  const recentInvoiceCount = visibleSyncs.filter((sync) => {
     if (!sync.syncedAt || !sync.qboInvoiceId) return false;
     return Date.now() - new Date(sync.syncedAt).getTime() <= 24 * 60 * 60 * 1000;
   }).length;
-  const recentActivity = logs.slice(0, 4);
-  const recentTableSyncs = syncs.slice(0, 5);
+  const recentActivity = visibleLogs.slice(0, 4);
+  const recentTableSyncs = visibleSyncs.slice(0, 5);
 
   const handleVideoDemoToggle = () => {
     const nextMode = !videoDemoMode;
@@ -841,7 +849,7 @@ function App() {
                 <div className="stat-label">Orders Synced</div>
               </div>
               <div className="stat-number">{syncsLoading ? '…' : syncedOrdersCount}</div>
-              <div className="stat-change positive">{demoMode ? 'Updated today' : `+${recentSyncCount} in last 24h`}</div>
+              <div className="stat-change positive">{hideMockDataUntilConnected ? 'Connect QuickBooks to load data' : demoMode ? 'Updated today' : `+${recentSyncCount} in last 24h`}</div>
             </div>
 
             <div className="stat-card stat-card-green">
@@ -850,7 +858,7 @@ function App() {
                 <div className="stat-label">Invoices Created</div>
               </div>
               <div className="stat-number">{syncsLoading ? '…' : invoiceCount}</div>
-              <div className="stat-change positive">{demoMode ? 'Recent invoice activity' : `+${recentInvoiceCount} in last 24h`}</div>
+              <div className="stat-change positive">{hideMockDataUntilConnected ? 'No invoices loaded yet' : demoMode ? 'Recent invoice activity' : `+${recentInvoiceCount} in last 24h`}</div>
             </div>
 
             <div className="stat-card stat-card-red">
@@ -1114,12 +1122,12 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {logs.length === 0 ? (
+                    {visibleLogs.length === 0 ? (
                       <tr>
                         <td colSpan="7">{logsLoading ? 'Loading logs...' : 'No log records found yet.'}</td>
                       </tr>
                     ) : (
-                      logs.slice(0, 50).map((log) => (
+                      visibleLogs.slice(0, 50).map((log) => (
                         <tr key={log.id}>
                           <td>{formatLogTime(log.created_at)}</td>
                           <td>{log.event_type || '—'}</td>
