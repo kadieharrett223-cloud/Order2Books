@@ -296,16 +296,22 @@ function App() {
       const hasInstallSuccessFlag = params.has('shopify_connected');
       const hasQboSuccessFlag = params.has('qbo_connected');
       const installGuardKey = `order2books-install-redirected:${shop}`;
+      const now = Date.now();
+      const cooldownMs = 30 * 1000;
+      const lastAttempt = Number(sessionStorage.getItem(installGuardKey) || '0');
 
       if (!shop || !shop.endsWith('.myshopify.com') || hasInstallSuccessFlag || hasQboSuccessFlag) {
+        if (shop && (hasInstallSuccessFlag || hasQboSuccessFlag)) {
+          sessionStorage.removeItem(installGuardKey);
+        }
         return;
       }
 
-      if (sessionStorage.getItem(installGuardKey) === 'true') {
+      if (Number.isFinite(lastAttempt) && lastAttempt > 0 && now - lastAttempt < cooldownMs) {
         return;
       }
 
-      sessionStorage.setItem(installGuardKey, 'true');
+      sessionStorage.setItem(installGuardKey, String(now));
       redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
     } catch {
     }
