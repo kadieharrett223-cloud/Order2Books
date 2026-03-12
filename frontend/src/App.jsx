@@ -696,6 +696,8 @@ function App() {
   const handleQboConnectClick = () => {
     if (videoDemoMode) {
       if (!videoDemoQboConnected) {
+        setActivePage('settings');
+        setSettingsTab('general');
         setVideoDemoLoginOpen(true);
       }
       return;
