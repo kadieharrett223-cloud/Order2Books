@@ -1331,6 +1331,7 @@ app.post('/api/plan/upgrade', async (req, res) => {
 app.get('/api/auth/shopify/install', async (req, res) => {
   try {
     const shop = String(req.query.shop || '').trim().toLowerCase()
+    const next = String(req.query.next || '').trim().toLowerCase()
     const plan = getActivePlanConfig()
 
     if (!validateShopDomain(shop)) {
@@ -1354,6 +1355,7 @@ app.get('/api/auth/shopify/install', async (req, res) => {
     const state = createSignedState({
       type: 'shopify',
       shop,
+      next,
       ts: Date.now(),
     })
 
@@ -1404,6 +1406,10 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
       payload: { shop, scope: tokenResponse.scope },
     })
 
+    if (statePayload.next === 'qbo') {
+      return res.redirect(`${APP_URL}/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`)
+    }
+
     return res.redirect(`${APP_URL}/?shopify_connected=1&shop=${encodeURIComponent(shop)}`)
   } catch (error) {
     await writeSyncLog({
@@ -1419,10 +1425,15 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
 app.get('/api/auth/qbo/start', async (req, res) => {
   try {
     const shopDomain = String(req.query.shop || req.shopDomainFromSession || '').toLowerCase().trim()
+
+    if (!validateShopDomain(shopDomain)) {
+      return res.status(400).json({ error: 'Missing or invalid shop domain. Expected *.myshopify.com' })
+    }
+
     const shop = await getShopByDomain(shopDomain)
 
     if (!shop) {
-      return res.status(404).json({ error: 'Shop not found. Complete Shopify OAuth first.' })
+      return res.redirect(`/api/auth/shopify/install?shop=${encodeURIComponent(shopDomain)}&next=qbo`)
     }
 
     if (!QBO_CLIENT_ID) {
