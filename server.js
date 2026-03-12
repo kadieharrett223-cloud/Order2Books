@@ -1438,7 +1438,7 @@ app.get('/api/auth/qbo/start', async (req, res) => {
 
 app.get('/api/auth/qbo/callback', async (req, res) => {
   try {
-    const { state, code, realmId } = req.query
+    const { state, code } = req.query
     const statePayload = verifySignedState(state)
 
     if (statePayload.type !== 'qbo') {
@@ -1452,12 +1452,27 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
       return res.status(404).json({ error: 'Shop not found for QuickBooks callback' })
     }
 
+    const realmId = String(
+      req.query.realmId || req.query.realmid || req.query.realmID || req.query.realm_id || '',
+    ).trim()
+
+    if (!realmId) {
+      await writeSyncLog({
+        shopId: shop.id,
+        eventType: 'qbo/oauth',
+        status: 'failed',
+        message: 'QuickBooks callback missing realmId',
+        payload: req.query,
+      })
+      return res.redirect(`${APP_URL}/?qbo_error=missing_realm&shop=${encodeURIComponent(shop.shop_domain)}`)
+    }
+
     const token = await exchangeQboCodeForToken({ code })
     const expiresAt = new Date(Date.now() + Number(token.expires_in || 3600) * 1000).toISOString()
 
     await updateQboTokensForShop({
       shopId: shop.id,
-      realmId: String(realmId || ''),
+      realmId,
       accessToken: token.access_token,
       refreshToken: token.refresh_token,
       expiresAt,
@@ -1782,7 +1797,7 @@ app.get('/api/settings', async (req, res) => {
       shopifyDomain: activeShop?.shop_domain || settings?.shopify_domain || '',
       shopifyApiKey: activeShop?.shopify_access_token || settings?.shopify_api_key ? '***' : '',
       shopifyConnected: Boolean(activeShop?.shop_domain),
-      qboConnected: Boolean(activeShop?.qbo_access_token && activeShop?.qbo_realm_id),
+      qboConnected: Boolean((activeShop?.qbo_refresh_token || activeShop?.qbo_access_token) && activeShop?.qbo_realm_id),
       qboCompanyName: activeShop?.qbo_realm_id ? `QuickBooks realm ${activeShop.qbo_realm_id}` : '',
       autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
       autoCreateQboItems: settings?.auto_create_qbo_items !== 0,

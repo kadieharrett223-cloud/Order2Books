@@ -299,6 +299,17 @@ function App() {
     }
   }, [settingsLoaded, settings.shopifyConnected]);
 
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const qboError = String(params.get('qbo_error') || '').trim();
+      if (qboError === 'missing_realm') {
+        alert('QuickBooks connection did not include a company (realm). Reconnect and select a QuickBooks company.');
+      }
+    } catch {
+    }
+  }, []);
+
 
 
   const startTutorial = () => {
