@@ -49,6 +49,14 @@
       "dest": "/frontend/privacy-policy.html"
     },
     {
+      "src": "/ops-review-2026.html",
+      "dest": "/frontend/ops-review-2026.html"
+    },
+    {
+      "src": "/merchant-walkthrough-video.mp4",
+      "dest": "/frontend/merchant-walkthrough-video.mp4"
+    },
+    {
       "src": "/vite.svg",
       "dest": "/frontend/vite.svg"
     },
