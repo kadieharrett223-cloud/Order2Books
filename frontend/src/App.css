@@ -838,6 +838,15 @@
   z-index: 2;
 }
 
+.mapping-attention-table .sync-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.mapping-attention-table .sync-table tbody tr {
+  position: relative;
+}
+
 .sync-table {
   width: 100%;
   border-collapse: collapse;
