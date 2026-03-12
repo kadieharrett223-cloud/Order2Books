@@ -36,7 +36,6 @@ const DEFAULT_SETTINGS = {
   autoDecrementInventory: false,
   autoCreateQboItems: true,
   captureMode: 'auto',
-  isDemo: false,
 };
 
 const DEFAULT_PLAN_DATA = {
@@ -82,79 +81,6 @@ const DEFAULT_PLAN_DATA = {
     },
   ],
 };
-
-const DEMO_QBO_ITEMS = [
-  { id: '201', name: 'Classic Tee', sku: 'TSHIRT-CLASSIC' },
-  { id: '202', name: 'Black Hoodie', sku: 'HOODIE-BLK' },
-  { id: '203', name: 'Baseball Cap', sku: 'CAP-NAVY' },
-  { id: '204', name: 'Sticker Pack', sku: 'STICKER-PACK' },
-  { id: '205', name: 'Gift Card', sku: 'GIFT-CARD' },
-  { id: '206', name: 'Travel Mug', sku: 'MUG-TRAVEL' },
-  { id: '207', name: 'Water Bottle', sku: 'BOTTLE-STEEL' },
-];
-
-function createEmptyMappings() {
-  return {
-    autoMapped: [],
-    needsAttention: [],
-  };
-}
-
-function createVideoDemoMappings() {
-  const now = new Date().toISOString();
-  return {
-    autoMapped: [
-      {
-        id: 'demo-auto-1',
-        shopifyTitle: 'Classic Tee - Small',
-        shopifySku: 'TSHIRT-CLASSIC-S',
-        qboItemId: '201',
-        qboItemName: 'Classic Tee',
-        mappingSource: 'sku_match',
-        updatedAt: now,
-      },
-      {
-        id: 'demo-auto-2',
-        shopifyTitle: 'Black Hoodie - Medium',
-        shopifySku: 'HOODIE-BLK-M',
-        qboItemId: '202',
-        qboItemName: 'Black Hoodie',
-        mappingSource: 'name_match',
-        updatedAt: now,
-      },
-      {
-        id: 'demo-auto-3',
-        shopifyTitle: 'Travel Mug',
-        shopifySku: 'MUG-TRAVEL',
-        qboItemId: '206',
-        qboItemName: 'Travel Mug',
-        mappingSource: 'sku_match',
-        updatedAt: now,
-      },
-      {
-        id: 'demo-auto-4',
-        shopifyTitle: 'Water Bottle',
-        shopifySku: 'BOTTLE-STEEL',
-        qboItemId: '207',
-        qboItemName: 'Water Bottle',
-        mappingSource: 'name_match',
-        updatedAt: now,
-      },
-    ],
-    needsAttention: [
-      {
-        id: 'demo-attn-1',
-        shopifyTitle: 'Baseball Cap - Navy',
-        shopifySku: 'CAP-NAVY',
-      },
-      {
-        id: 'demo-attn-2',
-        shopifyTitle: 'Sticker Bundle',
-        shopifySku: 'STICKER-PACK',
-      },
-    ],
-  };
-}
 
 const TUTORIAL_STEPS = [
   {
@@ -231,19 +157,6 @@ function App() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [syncs, setSyncs] = useState([]);
   const [syncsLoading, setSyncsLoading] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
-  const [videoDemoMode, setVideoDemoMode] = useState(() => {
-    try {
-      return localStorage.getItem('order2books-video-demo-mode') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [videoDemoQboConnected, setVideoDemoQboConnected] = useState(false);
-  const [videoDemoLoginOpen, setVideoDemoLoginOpen] = useState(false);
-  const [videoDemoLoginBusy, setVideoDemoLoginBusy] = useState(false);
-  const [videoDemoCredentials, setVideoDemoCredentials] = useState({ email: '', password: '' });
-  const [videoDemoMappings, setVideoDemoMappings] = useState(() => createEmptyMappings());
   const [mappings, setMappings] = useState({ autoMapped: [], needsAttention: [] });
   const [mappingsLoading, setMappingsLoading] = useState(false);
   const [mappingEdits, setMappingEdits] = useState({});
@@ -275,7 +188,6 @@ function App() {
       if (!response.ok) return;
       const data = await response.json();
       setSyncs(Array.isArray(data.syncs) ? data.syncs : []);
-      setDemoMode(Boolean(data.demoMode));
     } catch {
       setSyncs([]);
     } finally {
@@ -293,7 +205,6 @@ function App() {
         autoMapped: Array.isArray(data.autoMapped) ? data.autoMapped : [],
         needsAttention: Array.isArray(data.needsAttention) ? data.needsAttention : [],
       });
-      setDemoMode(Boolean(data.demoMode));
     } catch {
       setMappings({ autoMapped: [], needsAttention: [] });
     } finally {
@@ -327,15 +238,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('order2books-video-demo-mode', videoDemoMode ? 'true' : 'false');
-    } catch {
-    }
-  }, [videoDemoMode]);
-
-  useEffect(() => {
     if (!settingsLoaded) return;
-    if (settings.shopifyConnected || demoMode || videoDemoMode) return;
+    if (settings.shopifyConnected) return;
 
     try {
       const params = new URLSearchParams(window.location.search);
@@ -356,7 +260,7 @@ function App() {
       window.location.href = `/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`;
     } catch {
     }
-  }, [settingsLoaded, settings.shopifyConnected, demoMode, videoDemoMode]);
+  }, [settingsLoaded, settings.shopifyConnected]);
 
 
 
@@ -403,7 +307,6 @@ function App() {
       if (!response.ok) return;
       const data = await response.json();
       setLogs(Array.isArray(data.logs) ? data.logs : []);
-      setDemoMode(Boolean(data.demoMode));
     } catch {
       setLogs([]);
     } finally {
@@ -428,11 +331,6 @@ function App() {
   };
 
   const handleSearch = async () => {
-    if ((demoMode || videoDemoMode) && !videoDemoQboConnected) {
-      setSearchResult({ error: 'Connect QuickBooks first to load order activity.' });
-      return;
-    }
-
     if (!searchQuery.trim()) {
       setSearchResult(null);
       return;
@@ -455,18 +353,10 @@ function App() {
       const response = await apiFetch('/api/settings');
       if (!response.ok) return;
       const data = await response.json();
-      const isPreviewDemo = Boolean(data.demoMode || data.settings?.isDemo);
       setSettings({
         ...DEFAULT_SETTINGS,
         ...(data.settings || {}),
-        ...(isPreviewDemo
-          ? {
-            qboConnected: false,
-            qboCompanyName: '',
-          }
-          : {}),
       });
-      setDemoMode(isPreviewDemo);
     } catch {
     } finally {
       setSettingsLoaded(true);
@@ -474,11 +364,6 @@ function App() {
   };
 
   const saveSettings = async () => {
-    if (demoMode) {
-      alert('Install the app in Shopify to save live settings.');
-      return;
-    }
-
     try {
       const response = await apiFetch('/api/settings', {
         method: 'POST',
@@ -507,35 +392,6 @@ function App() {
 
     if (!qboItemId || !qboItemName) {
       alert('Enter both QuickBooks item id and item name.');
-      return;
-    }
-
-    if (videoDemoMode) {
-      setVideoDemoMappings((previous) => {
-        const target = previous.needsAttention.find((item) => String(item.id) === String(mappingId));
-        if (!target) return previous;
-
-        return {
-          autoMapped: [
-            {
-              ...target,
-              qboItemId,
-              qboItemName,
-              mappingSource: 'manual',
-              updatedAt: new Date().toISOString(),
-            },
-            ...previous.autoMapped,
-          ],
-          needsAttention: previous.needsAttention.filter((item) => String(item.id) !== String(mappingId)),
-        };
-      });
-      setMappingEdits((prev) => {
-        const next = { ...prev };
-        delete next[mappingId];
-        return next;
-      });
-      setMappingItemSearch((prev) => ({ ...prev, [mappingId]: '' }));
-      setMappingItemSearchResults((prev) => ({ ...prev, [mappingId]: [] }));
       return;
     }
 
@@ -568,15 +424,6 @@ function App() {
       return;
     }
 
-    if (videoDemoMode) {
-      const query = searchTerm.trim().toLowerCase();
-      const items = DEMO_QBO_ITEMS.filter((item) => {
-        return item.name.toLowerCase().includes(query) || String(item.sku || '').toLowerCase().includes(query);
-      });
-      setMappingItemSearchResults((prev) => ({ ...prev, [mappingId]: items.slice(0, 8) }));
-      return;
-    }
-
     try {
       const response = await apiFetch(`/api/qbo-items/search?q=${encodeURIComponent(searchTerm)}`);
       if (!response.ok) {
@@ -606,25 +453,6 @@ function App() {
   };
 
   const runMappingScan = async () => {
-    if (videoDemoMode) {
-      if (!videoDemoQboConnected) {
-        alert('Connect QuickBooks first to load products for mapping.');
-        return;
-      }
-      setScanBusy(true);
-      window.setTimeout(() => {
-        setVideoDemoMappings(createVideoDemoMappings());
-        setScanBusy(false);
-        alert('Scan complete. Products are ready for mapping.');
-      }, 900);
-      return;
-    }
-
-    if (demoMode) {
-      alert('Install on Shopify to run live mapping scans.');
-      return;
-    }
-
     setScanBusy(true);
     try {
       const response = await apiFetch('/api/mappings/scan', { method: 'POST' });
@@ -674,22 +502,9 @@ function App() {
     : Math.max(monthlyLimit - usedOrdersThisMonth, 0);
   const showStarterOrdersBadge = planData.plan.key === 'starter' && monthlyLimit != null;
   const showUpgradeWarning = monthlyLimit != null && usageRatio >= 0.8;
-  const effectiveSettings = videoDemoMode
-    ? {
-      ...settings,
-      qboConnected: videoDemoQboConnected,
-      qboCompanyName: videoDemoQboConnected ? 'QuickBooks Company' : '',
-    }
-    : demoMode
-      ? {
-        ...settings,
-        qboConnected: false,
-        qboCompanyName: '',
-      }
-      : settings;
-  const hideMockDataUntilConnected = (demoMode || videoDemoMode) && !effectiveSettings.qboConnected;
-  const visibleSyncs = hideMockDataUntilConnected ? [] : syncs;
-  const visibleLogs = hideMockDataUntilConnected ? [] : logs;
+  const effectiveSettings = settings;
+  const visibleSyncs = syncs;
+  const visibleLogs = logs;
   const syncedOrdersCount = visibleSyncs.filter((sync) => String(sync.syncStatus).toLowerCase() === 'synced').length;
   const invoiceCount = visibleSyncs.filter((sync) => Boolean(sync.qboInvoiceId)).length;
   const syncErrorCount = visibleSyncs.filter((sync) => String(sync.syncStatus).toLowerCase().includes('fail')).length;
@@ -697,7 +512,7 @@ function App() {
     const status = String(sync.syncStatus || '').toLowerCase();
     return status && status !== 'synced' && status !== 'success';
   }).length;
-  const effectiveMappings = videoDemoMode ? videoDemoMappings : mappings;
+  const effectiveMappings = mappings;
   const disconnectedCount = effectiveSettings.qboConnected ? 0 : 1;
   const lastSync = visibleSyncs[0]?.syncedAt || null;
   const recentSyncCount = visibleSyncs.filter((sync) => {
@@ -711,71 +526,8 @@ function App() {
   const recentActivity = visibleLogs.slice(0, 4);
   const recentTableSyncs = visibleSyncs.slice(0, 5);
 
-  const handleVideoDemoToggle = () => {
-    const nextMode = !videoDemoMode;
-    setVideoDemoMode(nextMode);
-    setMappingEdits({});
-    setMappingItemSearch({});
-    setMappingItemSearchResults({});
-
-    if (nextMode) {
-      setVideoDemoQboConnected(false);
-      setVideoDemoLoginOpen(false);
-      setVideoDemoLoginBusy(false);
-      setVideoDemoCredentials({ email: '', password: '' });
-      setVideoDemoMappings(createEmptyMappings());
-      setActivePage('settings');
-      setSettingsTab('general');
-    }
-  };
-
   const handleQboConnectClick = () => {
-    if (videoDemoMode) {
-      if (!videoDemoQboConnected) {
-        setActivePage('settings');
-        setSettingsTab('general');
-        setVideoDemoLoginOpen(true);
-      }
-      return;
-    }
-
-    if (demoMode) {
-      setVideoDemoMode(true);
-      setVideoDemoQboConnected(false);
-      setVideoDemoLoginOpen(true);
-      setVideoDemoLoginBusy(false);
-      setVideoDemoCredentials({ email: '', password: '' });
-      setVideoDemoMappings(createEmptyMappings());
-      setMappingEdits({});
-      setMappingItemSearch({});
-      setMappingItemSearchResults({});
-      setActivePage('settings');
-      setSettingsTab('general');
-      return;
-    }
-
     window.location.href = '/api/auth/qbo/start';
-  };
-
-  const submitVideoDemoQuickBooksLogin = () => {
-    if (!videoDemoMode) return;
-
-    const email = String(videoDemoCredentials.email || '').trim();
-    const password = String(videoDemoCredentials.password || '').trim();
-    if (!email || !password) {
-      alert('Enter your email and password to continue.');
-      return;
-    }
-
-    setVideoDemoLoginBusy(true);
-    window.setTimeout(() => {
-      setVideoDemoQboConnected(true);
-      setVideoDemoMappings(createVideoDemoMappings());
-      setVideoDemoLoginOpen(false);
-      setVideoDemoLoginBusy(false);
-      setVideoDemoCredentials({ email: '', password: '' });
-      alert('QuickBooks connected. Products are ready for mapping.');
-    }, 700);
   };
 
   return (
@@ -795,7 +547,7 @@ function App() {
             📊 Activity
           </button>
           <button className="btn-secondary" onClick={refreshAppData}>
-            {demoMode ? '⏱ Auto refresh: 5 min' : '🔵 Refresh'}
+            🔵 Refresh
           </button>
           <button
             className={`btn-upgrade ${showUpgradeWarning ? 'btn-upgrade-warning' : ''}`}
@@ -877,7 +629,7 @@ function App() {
                 <div className="stat-label">Orders Synced</div>
               </div>
               <div className="stat-number">{syncsLoading ? '…' : syncedOrdersCount}</div>
-              <div className="stat-change positive">{hideMockDataUntilConnected ? 'Connect QuickBooks to load data' : demoMode ? 'Updated today' : `+${recentSyncCount} in last 24h`}</div>
+              <div className="stat-change positive">+{recentSyncCount} in last 24h</div>
             </div>
 
             <div className="stat-card stat-card-green">
@@ -886,7 +638,7 @@ function App() {
                 <div className="stat-label">Invoices Created</div>
               </div>
               <div className="stat-number">{syncsLoading ? '…' : invoiceCount}</div>
-              <div className="stat-change positive">{hideMockDataUntilConnected ? 'No invoices loaded yet' : demoMode ? 'Recent invoice activity' : `+${recentInvoiceCount} in last 24h`}</div>
+              <div className="stat-change positive">+{recentInvoiceCount} in last 24h</div>
             </div>
 
             <div className="stat-card stat-card-red">
@@ -904,7 +656,7 @@ function App() {
                 <div className="stat-label">Last Sync</div>
               </div>
               <div className="stat-number-small">{formatRelativeTime(lastSync)}</div>
-              <div className="stat-change">{demoMode ? 'Recent timeline' : 'Live timeline'}</div>
+              <div className="stat-change">Live timeline</div>
             </div>
           </div>
 
@@ -938,13 +690,7 @@ function App() {
                   className="btn-connect"
                   onClick={handleQboConnectClick}
                 >
-                  {videoDemoMode
-                    ? (effectiveSettings.qboConnected ? '✓ Connected' : 'Connect')
-                    : demoMode
-                      ? 'Install to connect'
-                      : effectiveSettings.qboConnected
-                        ? 'Connected'
-                        : 'Connect'}
+                  {effectiveSettings.qboConnected ? 'Connected' : 'Connect'}
                 </button>
               </div>
             </div>
@@ -1102,7 +848,7 @@ function App() {
                   Paid orders from Shopify are automatically imported into QuickBooks. If QB isn't connected, orders are saved as "pending" and will sync once you connect QB in Settings. Use the search below to look up orders by their Shopify ID.
                 </p>
                 <p style={{ margin: '8px 0 0 0' }}>
-                  {demoMode ? 'The dashboard refreshes automatically every 5 minutes.' : 'Orders sync automatically and the dashboard refreshes every 5 minutes.'}
+                  Orders sync automatically and the dashboard refreshes every 5 minutes.
                 </p>
               </div>
               
@@ -1217,35 +963,6 @@ function App() {
                   </section>
 
                   <section className="section-card">
-                    <h3 className="section-title">Connection Tools</h3>
-                    <div className="settings-form">
-                      <p className="form-hint">Use these controls to reset and rehearse the connection and mapping flow.</p>
-                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        <button className="btn-action" onClick={handleVideoDemoToggle}>
-                          {videoDemoMode ? 'Disable Guided Connect' : 'Enable Guided Connect'}
-                        </button>
-                        {videoDemoMode ? (
-                          <button
-                            className="btn-secondary"
-                            onClick={() => {
-                              setVideoDemoMappings(createEmptyMappings());
-                              setVideoDemoQboConnected(false);
-                              setVideoDemoLoginOpen(false);
-                              setVideoDemoLoginBusy(false);
-                              setVideoDemoCredentials({ email: '', password: '' });
-                              setMappingEdits({});
-                              setMappingItemSearch({});
-                              setMappingItemSearchResults({});
-                            }}
-                          >
-                            Reset Connection State
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="section-card">
                     <h3 className="section-title">Shopify Connection</h3>
                     <div className="settings-form">
                       <div className={`connected-status-badge ${settings.shopifyConnected ? 'connected' : 'not-connected'}`}>
@@ -1253,11 +970,9 @@ function App() {
                         <div>
                           <div className="connected-status-label">{settings.shopifyConnected ? 'Connected to Shopify' : 'Not connected'}</div>
                           <div className="connected-status-sub">
-                            {demoMode
-                              ? 'Install the app on Shopify to connect your store'
-                              : effectiveSettings.shopifyConnected
-                                ? `Store: ${effectiveSettings.shopifyDomain || 'your Shopify store'}`
-                                : 'Install Order2Books from the Shopify App Store to connect automatically'}
+                            {effectiveSettings.shopifyConnected
+                              ? `Store: ${effectiveSettings.shopifyDomain || 'your Shopify store'}`
+                              : 'Install Order2Books from the Shopify App Store to connect automatically'}
                           </div>
                         </div>
                       </div>
@@ -1273,67 +988,10 @@ function App() {
                         className="btn-oauth"
                         onClick={handleQboConnectClick}
                       >
-                        {videoDemoMode
-                          ? (effectiveSettings.qboConnected ? '✓ Connected to QuickBooks' : '🔗 Connect QuickBooks Online')
-                          : demoMode
-                            ? 'Install app to connect QuickBooks'
-                            : effectiveSettings.qboConnected
-                              ? '✓ Connected to QuickBooks'
-                              : '🔗 Connect QuickBooks Online'}
+                        {effectiveSettings.qboConnected
+                          ? '✓ Connected to QuickBooks'
+                          : '🔗 Connect QuickBooks Online'}
                       </button>
-
-                      {videoDemoMode && !effectiveSettings.qboConnected && videoDemoLoginOpen ? (
-                        <div style={{ marginTop: '12px', display: 'grid', gap: '8px', maxWidth: '420px' }}>
-                          <input
-                            className="form-input"
-                            placeholder="QuickBooks email"
-                            value={videoDemoCredentials.email}
-                            onChange={(event) => setVideoDemoCredentials((prev) => ({ ...prev, email: event.target.value }))}
-                          />
-                          <input
-                            className="form-input"
-                            type="password"
-                            placeholder="QuickBooks password"
-                            value={videoDemoCredentials.password}
-                            onChange={(event) => setVideoDemoCredentials((prev) => ({ ...prev, password: event.target.value }))}
-                          />
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className="btn-action" onClick={submitVideoDemoQuickBooksLogin} disabled={videoDemoLoginBusy}>
-                              {videoDemoLoginBusy ? 'Connecting...' : 'Sign In'}
-                            </button>
-                            <button
-                              className="btn-secondary"
-                              onClick={() => {
-                                setVideoDemoLoginOpen(false);
-                                setVideoDemoCredentials({ email: '', password: '' });
-                              }}
-                              disabled={videoDemoLoginBusy}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                          <p className="form-hint">Sign in to continue connecting QuickBooks.</p>
-                        </div>
-                      ) : null}
-
-                      {videoDemoMode && effectiveSettings.qboConnected ? (
-                        <div style={{ marginTop: '10px' }}>
-                          <button
-                            className="btn-secondary"
-                            onClick={() => {
-                              setVideoDemoQboConnected(false);
-                              setVideoDemoLoginOpen(false);
-                              setVideoDemoCredentials({ email: '', password: '' });
-                              setVideoDemoMappings(createEmptyMappings());
-                              setMappingEdits({});
-                              setMappingItemSearch({});
-                              setMappingItemSearchResults({});
-                            }}
-                          >
-                            Disconnect QuickBooks
-                          </button>
-                        </div>
-                      ) : null}
                     </div>
                   </section>
 
@@ -1345,7 +1003,6 @@ function App() {
                         <select
                           id="captureMode"
                           className="form-input"
-                          disabled={demoMode || videoDemoMode}
                           value={settings.captureMode}
                           onChange={(e) => setSettings({ ...settings, captureMode: e.target.value })}
                         >
@@ -1360,7 +1017,6 @@ function App() {
                           id="autoCreateQboItems"
                           type="checkbox"
                           checked={settings.autoCreateQboItems}
-                          disabled={demoMode || videoDemoMode}
                           onChange={(e) => setSettings({ ...settings, autoCreateQboItems: e.target.checked })}
                         />
                         <label htmlFor="autoCreateQboItems">Automatically create new QuickBooks items for unmatched Shopify products</label>
@@ -1372,7 +1028,6 @@ function App() {
                           id="autoDecrement"
                           type="checkbox"
                           checked={settings.autoDecrementInventory}
-                          disabled={demoMode || videoDemoMode}
                           onChange={(e) => setSettings({ ...settings, autoDecrementInventory: e.target.checked })}
                         />
                         <label htmlFor="autoDecrement">Automatically decrement inventory in QuickBooks when order is synced</label>
@@ -1383,7 +1038,7 @@ function App() {
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                     <button className="btn-secondary-dark" onClick={loadSettings}>Reset</button>
-                    <button className="btn-primary" onClick={saveSettings} disabled={demoMode || videoDemoMode}>Save Settings</button>
+                    <button className="btn-primary" onClick={saveSettings}>Save Settings</button>
                   </div>
                 </>
               ) : null}
@@ -1487,15 +1142,10 @@ function App() {
               <section className="section-card">
                 <div className="section-header">
                   <h3 className="section-title">Auto Mapped Items</h3>
-                  <button className="btn-action" onClick={runMappingScan} disabled={scanBusy || (videoDemoMode && !videoDemoQboConnected)}>
+                  <button className="btn-action" onClick={runMappingScan} disabled={scanBusy}>
                     {scanBusy ? 'Scanning...' : 'Run Scan'}
                   </button>
                 </div>
-                {videoDemoMode && !videoDemoQboConnected ? (
-                  <p className="form-hint" style={{ marginBottom: '12px' }}>
-                    Connect QuickBooks in Settings first. Products load after connection.
-                  </p>
-                ) : null}
                 <div className="table-container">
                   <table className="sync-table">
                     <thead>

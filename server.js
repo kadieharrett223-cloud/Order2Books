@@ -313,182 +313,14 @@ async function getActiveInstalledShop(req) {
   const db = await getDb()
   const requestedShopDomain = String(req?.shopDomainFromSession || '').toLowerCase().trim()
 
-  if (requestedShopDomain) {
-    const requestedShop = await db.get(
-      `SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1`,
-      [requestedShopDomain],
-    )
-
-    if (requestedShop) {
-      return requestedShop
-    }
+  if (!requestedShopDomain) {
+    return null
   }
 
   return db.get(
-    `SELECT *
-     FROM shops
-     WHERE is_installed = 1
-     ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC
-     LIMIT 1`,
+    `SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1`,
+    [requestedShopDomain],
   )
-}
-
-async function shouldUseDemoMode(req) {
-  const activeShop = await getActiveInstalledShop(req)
-  return !activeShop
-}
-
-function buildDemoDataset() {
-  const now = Date.now()
-  const shopDomain = 'demo-books.myshopify.com'
-  const syncs = []
-  const logs = []
-
-  for (let index = 0; index < 120; index += 1) {
-    const orderNumber = 1100 - index
-    const orderId = String(orderNumber)
-    const invoiceId = `INV-${2100 - index}`
-    const customerId = `DEMO-CUST-${400 - index}`
-    const createdAt = new Date(now - index * 35 * 60 * 1000)
-    const status = index < 100 ? 'synced' : index < 112 ? 'processing' : 'failed'
-    const hasInvoice = status === 'synced'
-    const message =
-      status === 'synced'
-        ? `Demo invoice ${invoiceId} created for sample order #${orderId}.`
-        : status === 'processing'
-          ? `Demo order #${orderId} is queued for automatic QuickBooks sync.`
-          : `Demo sync for order #${orderId} needs review before invoice creation.`
-
-    syncs.push({
-      shopId: 'demo-shop',
-      shopDomain,
-      shopifyOrderId: orderId,
-      shopifyOrderName: `#${orderId}`,
-      qboCustomerId: hasInvoice ? customerId : null,
-      qboInvoiceId: hasInvoice ? invoiceId : null,
-      financialStatus: 'paid',
-      syncStatus: status,
-      lastError: status === 'failed' ? 'Demo sync failed: sample customer mapping needs review.' : null,
-      syncedAt: createdAt.toISOString(),
-    })
-
-    logs.push({
-      id: `demo-log-${index + 1}`,
-      created_at: createdAt.toISOString(),
-      event_type: status === 'failed' ? 'retry' : 'orders/paid',
-      status: status === 'synced' ? 'success' : status,
-      shop_domain: shopDomain,
-      shopify_order_id: orderId,
-      qbo_invoice_id: hasInvoice ? invoiceId : null,
-      message,
-    })
-  }
-
-  logs.unshift({
-    id: 'demo-log-setup-shopify',
-    created_at: new Date(now - 4 * 60 * 1000).toISOString(),
-    event_type: 'shopify/oauth',
-    status: 'success',
-    shop_domain: shopDomain,
-    shopify_order_id: null,
-    qbo_invoice_id: null,
-    message: 'Demo Shopify store connected for preview mode.',
-  })
-
-  logs.unshift({
-    id: 'demo-log-setup-qbo',
-    created_at: new Date(now - 2 * 60 * 1000).toISOString(),
-    event_type: 'qbo/oauth',
-    status: 'success',
-    shop_domain: shopDomain,
-    shopify_order_id: null,
-    qbo_invoice_id: null,
-    message: 'Demo QuickBooks company connected for preview mode.',
-  })
-
-  return { syncs, logs }
-}
-
-function buildDemoSyncs() {
-  return buildDemoDataset().syncs
-}
-
-function buildDemoLogs() {
-  return buildDemoDataset().logs
-}
-
-function buildDemoSettings() {
-  return {
-    shopifyDomain: 'demo-books.myshopify.com',
-    shopifyApiKey: 'demo_preview_token',
-    shopifyConnected: true,
-    qboConnected: true,
-    qboCompanyName: 'Demo QuickBooks Company',
-    autoDecrementInventory: false,
-    autoCreateQboItems: true,
-    captureMode: CAPTURE_MODES.AUTO,
-    isDemo: true,
-  }
-}
-
-function buildDemoMappings() {
-  const autoMapped = [
-    {
-      id: 'demo-map-1',
-      shopifyTitle: 'Classic Tee',
-      shopifySku: 'TEE-001',
-      qboItemId: '88',
-      qboItemName: 'Classic Tee',
-      mappingSource: 'sku',
-      status: 'mapped',
-      updatedAt: nowIso(),
-    },
-    {
-      id: 'demo-map-2',
-      shopifyTitle: 'Travel Mug',
-      shopifySku: 'MUG-014',
-      qboItemId: '102',
-      qboItemName: 'Travel Mug',
-      mappingSource: 'name',
-      status: 'mapped',
-      updatedAt: nowIso(),
-    },
-    {
-      id: 'demo-map-3',
-      shopifyTitle: 'Hoodie - Black',
-      shopifySku: 'HD-BLK-M',
-      qboItemId: '131',
-      qboItemName: 'Hoodie Black Medium',
-      mappingSource: 'auto-created',
-      status: 'mapped',
-      updatedAt: nowIso(),
-    },
-  ]
-
-  const needsAttention = [
-    {
-      id: 'demo-map-attn-1',
-      shopifyTitle: 'Gift Wrap Service',
-      shopifySku: 'WRAP-SVC',
-      qboItemId: null,
-      qboItemName: null,
-      mappingSource: 'fallback',
-      status: 'needs_attention',
-      updatedAt: nowIso(),
-    },
-    {
-      id: 'demo-map-attn-2',
-      shopifyTitle: 'Limited Edition Bundle',
-      shopifySku: 'BUNDLE-LTD',
-      qboItemId: null,
-      qboItemName: null,
-      mappingSource: 'fallback',
-      status: 'needs_attention',
-      updatedAt: nowIso(),
-    },
-  ]
-
-  return { autoMapped, needsAttention }
 }
 
 async function countMonthlyOrderSyncs() {
@@ -1680,14 +1512,11 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
 })
 
 app.get('/api/syncs', async (req, res) => {
-  if (await shouldUseDemoMode(req)) {
-    return res.json({
-      demoMode: true,
-      syncs: buildDemoSyncs(),
-    })
+  const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop) {
+    return res.json({ syncs: [] })
   }
 
-  const activeShop = await getActiveInstalledShop(req)
   const db = await getDb()
   const syncs = await db.all(
     `SELECT os.*, s.shop_domain
@@ -1699,7 +1528,6 @@ app.get('/api/syncs', async (req, res) => {
   )
 
   return res.json({
-    demoMode: false,
     syncs: syncs.map((row) => ({
       shopId: row.shop_id,
       shopDomain: row.shop_domain,
@@ -1716,23 +1544,11 @@ app.get('/api/syncs', async (req, res) => {
 })
 
 app.get('/api/syncs/:shopifyOrderId', async (req, res) => {
-  if (await shouldUseDemoMode(req)) {
-    const searchValue = String(req.params.shopifyOrderId || '').trim()
-    const demoSync = buildDemoSyncs().find(
-      (sync) =>
-        String(sync.shopifyOrderId) === searchValue ||
-        String(sync.shopifyOrderName).replace(/^#/, '') === searchValue ||
-        String(sync.qboInvoiceId || '') === searchValue,
-    )
-
-    if (!demoSync) {
-      return res.status(404).json({ error: 'Sync not found' })
-    }
-
-    return res.json({ demoMode: true, sync: demoSync })
+  const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop) {
+    return res.status(404).json({ error: 'Sync not found' })
   }
 
-  const activeShop = await getActiveInstalledShop(req)
   const db = await getDb()
   const sync = await db.get(
     `SELECT os.*, s.shop_domain
@@ -1747,7 +1563,6 @@ app.get('/api/syncs/:shopifyOrderId', async (req, res) => {
   }
 
   return res.json({
-    demoMode: false,
     sync: {
       shopId: sync.shop_id,
       shopDomain: sync.shop_domain,
@@ -1842,14 +1657,11 @@ app.post('/api/syncs/:shopifyOrderId/retry', async (req, res) => {
 })
 
 app.get('/api/logs', async (req, res) => {
-  if (await shouldUseDemoMode(req)) {
-    return res.json({
-      demoMode: true,
-      logs: buildDemoLogs(),
-    })
+  const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop) {
+    return res.json({ logs: [] })
   }
 
-  const activeShop = await getActiveInstalledShop(req)
   const db = await getDb()
   const logs = await db.all(
     `SELECT sl.*, s.shop_domain, os.qbo_invoice_id
@@ -1861,18 +1673,15 @@ app.get('/api/logs', async (req, res) => {
      LIMIT 500`,
     [activeShop.id],
   )
-  return res.json({ demoMode: false, logs })
+  return res.json({ logs })
 })
 
 app.get('/api/mappings', async (req, res) => {
-  if (await shouldUseDemoMode(req)) {
-    return res.json({
-      demoMode: true,
-      ...buildDemoMappings(),
-    })
+  const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop) {
+    return res.json({ autoMapped: [], needsAttention: [] })
   }
 
-  const activeShop = await getActiveInstalledShop(req)
   const db = await getDb()
   const mappings = await db.all(
     `SELECT *
@@ -1895,18 +1704,16 @@ app.get('/api/mappings', async (req, res) => {
   }))
 
   return res.json({
-    demoMode: false,
     autoMapped: formatted.filter((mapping) => mapping.status === 'mapped'),
     needsAttention: formatted.filter((mapping) => mapping.status !== 'mapped'),
   })
 })
 
 app.post('/api/mappings/scan', async (req, res) => {
-  if (await shouldUseDemoMode(req)) {
-    return res.status(403).json({ error: 'Install the app in Shopify to run live mapping scans.' })
-  }
-
   const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop) {
+    return res.status(401).json({ error: 'Shopify session required.' })
+  }
 
   if (!activeShop?.qbo_access_token || !activeShop?.qbo_realm_id) {
     return res.status(400).json({ error: 'QuickBooks must be connected before running a mapping scan.' })
@@ -1920,10 +1727,6 @@ app.post('/api/mappings/scan', async (req, res) => {
 })
 
 app.post('/api/mappings/:mappingId', async (req, res) => {
-  if (await shouldUseDemoMode(req)) {
-    return res.status(403).json({ error: 'Install the app in Shopify to edit live mappings.' })
-  }
-
   const mappingId = Number(req.params.mappingId)
   if (!mappingId) {
     return res.status(400).json({ error: 'Invalid mapping id' })
@@ -1935,6 +1738,10 @@ app.post('/api/mappings/:mappingId', async (req, res) => {
   }
 
   const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop) {
+    return res.status(401).json({ error: 'Shopify session required.' })
+  }
+
   const db = await getDb()
   const existing = await db.get('SELECT * FROM product_mappings WHERE id = ? AND shop_id = ?', [mappingId, activeShop.id])
 
@@ -1965,32 +1772,11 @@ app.post('/api/mappings/:mappingId', async (req, res) => {
 })
 
 app.get('/api/qbo-items/search', async (req, res) => {
-  if (await shouldUseDemoMode(req)) {
-    // Return demo QB items for autocomplete
-    const searchTerm = String(req.query.q || '').toLowerCase().trim()
-    const demoItems = [
-      { id: '88', name: 'Classic Tee', sku: 'TEE-001', type: 'NonInventory' },
-      { id: '102', name: 'Travel Mug', sku: 'MUG-014', type: 'NonInventory' },
-      { id: '131', name: 'Hoodie Black Medium', sku: 'HD-BLK-M', type: 'NonInventory' },
-      { id: '150', name: 'Poster Pack', sku: 'POSTER-5', type: 'NonInventory' },
-      { id: '2', name: 'Miscellaneous Service', sku: '', type: 'Service' },
-    ]
-
-    if (searchTerm) {
-      return res.json({
-        demoMode: true,
-        items: demoItems.filter(
-          (item) =>
-            item.name.toLowerCase().includes(searchTerm) ||
-            item.sku.toLowerCase().includes(searchTerm),
-        ),
-      })
-    }
-
-    return res.json({ demoMode: true, items: demoItems.slice(0, 10) })
+  const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop) {
+    return res.status(401).json({ error: 'Shopify session required.' })
   }
 
-  const activeShop = await getActiveInstalledShop(req)
   if (!activeShop.qbo_access_token) {
     return res.status(401).json({ error: 'QuickBooks not connected' })
   }
@@ -2010,19 +1796,11 @@ app.get('/api/qbo-items/search', async (req, res) => {
 })
 
 app.get('/api/settings', async (req, res) => {
-  if (await shouldUseDemoMode(req)) {
-    return res.json({
-      demoMode: true,
-      settings: buildDemoSettings(),
-    })
-  }
-
   const activeShop = await getActiveInstalledShop(req)
   const db = await getDb()
   const settings = await db.get('SELECT * FROM app_settings WHERE id = 1')
 
   return res.json({
-    demoMode: false,
     settings: {
       shopifyDomain: activeShop?.shop_domain || settings?.shopify_domain || '',
       shopifyApiKey: activeShop?.shopify_access_token || settings?.shopify_api_key ? '***' : '',
@@ -2032,14 +1810,14 @@ app.get('/api/settings', async (req, res) => {
       autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
       autoCreateQboItems: settings?.auto_create_qbo_items !== 0,
       captureMode: normalizeCaptureMode(settings?.capture_mode),
-      isDemo: false,
     },
   })
 })
 
 app.post('/api/settings', async (req, res) => {
-  if (await shouldUseDemoMode(req)) {
-    return res.status(403).json({ error: 'Install the app in Shopify to save live settings.' })
+  const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop) {
+    return res.status(401).json({ error: 'Shopify session required.' })
   }
 
   const { shopifyDomain, shopifyApiKey, autoDecrementInventory, autoCreateQboItems, captureMode } = req.body
