@@ -297,6 +297,14 @@ async function getActiveInstalledShop(req) {
   const requestedShopDomain = shopFromSession || (validateShopDomain(shopFromQuery) ? shopFromQuery : '')
 
   if (!requestedShopDomain) {
+    const installedShops = await db.all(
+      `SELECT * FROM shops WHERE is_installed = 1 ORDER BY updated_at DESC LIMIT 2`,
+    )
+
+    if (installedShops.length === 1) {
+      return installedShops[0]
+    }
+
     return null
   }
 
