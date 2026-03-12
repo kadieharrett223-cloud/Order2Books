@@ -424,8 +424,18 @@ function App() {
       const response = await apiFetch('/api/settings');
       if (!response.ok) return;
       const data = await response.json();
-      setSettings({ ...DEFAULT_SETTINGS, ...(data.settings || {}) });
-      setDemoMode(Boolean(data.demoMode || data.settings?.isDemo));
+      const isPreviewDemo = Boolean(data.demoMode || data.settings?.isDemo);
+      setSettings({
+        ...DEFAULT_SETTINGS,
+        ...(data.settings || {}),
+        ...(isPreviewDemo
+          ? {
+            qboConnected: false,
+            qboCompanyName: '',
+          }
+          : {}),
+      });
+      setDemoMode(isPreviewDemo);
     } catch {
     }
   };
