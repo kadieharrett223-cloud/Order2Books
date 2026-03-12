@@ -1397,20 +1397,9 @@ app.get('/api/auth/shopify/install', async (req, res) => {
   try {
     const shop = String(req.query.shop || '').trim().toLowerCase()
     const next = String(req.query.next || 'qbo').trim().toLowerCase()
-    const plan = getActivePlanConfig()
 
     if (!validateShopDomain(shop)) {
       return res.status(400).json({ error: 'Invalid shop domain. Expected *.myshopify.com' })
-    }
-
-    if (!plan.supportsMultiStore) {
-      const existingShop = await getShopByDomain(shop)
-      const installedCount = await countInstalledShops()
-      if (!existingShop && installedCount >= 1) {
-        return res.status(403).json({
-          error: 'Starter plan supports one store. Upgrade to Scale for multi-store support.',
-        })
-      }
     }
 
     if (!SHOPIFY_API_KEY) {
