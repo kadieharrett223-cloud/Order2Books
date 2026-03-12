@@ -11,6 +11,19 @@ const port = Number(process.env.PORT || 4000)
 
 // APP_URL - use from env, fallback to localhost for dev, or infer from Vercel
 let APP_URL = process.env.APP_URL
+const VERCEL_PRODUCTION_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : ''
+
+if (APP_URL && VERCEL_PRODUCTION_URL) {
+  const normalizedAppUrl = String(APP_URL).trim().replace(/\/+$/, '')
+  const normalizedProdUrl = String(VERCEL_PRODUCTION_URL).trim().replace(/\/+$/, '')
+  const looksLikePreview = /-[a-z0-9]+-[a-z0-9-]+\.vercel\.app$/i.test(normalizedAppUrl)
+  if (looksLikePreview && normalizedAppUrl.toLowerCase() !== normalizedProdUrl.toLowerCase()) {
+    APP_URL = normalizedProdUrl
+  }
+}
+
 if (APP_URL && /admin\.shopify\.com/i.test(APP_URL)) {
   APP_URL = ''
 }
