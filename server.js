@@ -11,6 +11,14 @@ const port = Number(process.env.PORT || 4000)
 
 // APP_URL - use from env, fallback to localhost for dev, or infer from Vercel
 let APP_URL = process.env.APP_URL
+if (APP_URL && /admin\.shopify\.com/i.test(APP_URL)) {
+  APP_URL = ''
+}
+
+if (APP_URL) {
+  APP_URL = String(APP_URL).trim().replace(/\/+$/, '')
+}
+
 if (!APP_URL) {
   if (process.env.VERCEL_URL) {
     APP_URL = `https://${process.env.VERCEL_URL}`
@@ -183,6 +191,14 @@ function buildAppUrl(pathname) {
 
 function buildQboCallbackUrl(req) {
   return `${getRequestOrigin(req)}/api/auth/qbo/callback`
+}
+
+function buildAppUrlFromRequest(req, pathname) {
+  const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`
+  const requestOrigin = String(getRequestOrigin(req) || '').replace(/\/+$/, '')
+  const envOrigin = String(APP_URL || '').replace(/\/+$/, '')
+  const baseUrl = /admin\.shopify\.com/i.test(envOrigin) || !envOrigin ? requestOrigin : envOrigin
+  return `${baseUrl}${normalizedPath}`
 }
 
 function qboApiBaseUrl() {
@@ -1432,10 +1448,10 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
       }
 
       if (statePayload.next === 'qbo') {
-        return res.redirect(buildAppUrl(`/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
+        return res.redirect(buildAppUrlFromRequest(req, `/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
       }
 
-      return res.redirect(buildAppUrl(`/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
+      return res.redirect(buildAppUrlFromRequest(req, `/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
     }
 
     try {
@@ -1462,10 +1478,10 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
     })
 
     if (statePayload.next === 'qbo') {
-      return res.redirect(buildAppUrl(`/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
+      return res.redirect(buildAppUrlFromRequest(req, `/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
     }
 
-    return res.redirect(buildAppUrl(`/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
+    return res.redirect(buildAppUrlFromRequest(req, `/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
   } catch (error) {
     await writeSyncLog({
       eventType: 'shopify/oauth',

@@ -22,6 +22,45 @@ function getCurrentShopDomain() {
   return '';
 }
 
+function decodeShopFromSessionToken(token) {
+  try {
+    const jwt = String(token || '');
+    const parts = jwt.split('.');
+    if (parts.length < 2) return '';
+
+    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payloadJson = window.atob(payloadBase64);
+    const payload = JSON.parse(payloadJson);
+    const dest = String(payload?.dest || '').trim().toLowerCase();
+    const host = dest.replace(/^https?:\/\//, '');
+    if (host && host.endsWith('.myshopify.com')) {
+      return host;
+    }
+  } catch {
+  }
+
+  return '';
+}
+
+async function getCurrentShopDomainWithTokenFallback() {
+  const fromUrlOrStorage = getCurrentShopDomain();
+  if (fromUrlOrStorage) {
+    return fromUrlOrStorage;
+  }
+
+  const token = await getShopifySessionToken();
+  const fromToken = decodeShopFromSessionToken(token);
+  if (fromToken) {
+    try {
+      sessionStorage.setItem(SHOP_STORAGE_KEY, fromToken);
+    } catch {
+    }
+    return fromToken;
+  }
+
+  return '';
+}
+
 function redirectToTop(url) {
   let targetUrl = url;
 
@@ -300,31 +339,42 @@ function App() {
     if (!settingsLoaded) return;
     if (settings.shopifyConnected) return;
 
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const shop = String(params.get('shop') || '').trim().toLowerCase();
-      const hasInstallSuccessFlag = params.has('shopify_connected');
-      const hasQboSuccessFlag = params.has('qbo_connected');
-      const installGuardKey = `order2books-install-redirected:${shop}`;
-      const now = Date.now();
-      const cooldownMs = 30 * 1000;
-      const lastAttempt = Number(sessionStorage.getItem(installGuardKey) || '0');
+    let cancelled = false;
 
-      if (!shop || !shop.endsWith('.myshopify.com') || hasInstallSuccessFlag || hasQboSuccessFlag) {
-        if (shop && (hasInstallSuccessFlag || hasQboSuccessFlag)) {
-          sessionStorage.removeItem(installGuardKey);
+    const autoInstall = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const shop = await getCurrentShopDomainWithTokenFallback();
+        const hasInstallSuccessFlag = params.has('shopify_connected');
+        const hasQboSuccessFlag = params.has('qbo_connected');
+        const installGuardKey = `order2books-install-redirected:${shop}`;
+        const now = Date.now();
+        const cooldownMs = 30 * 1000;
+        const lastAttempt = Number(sessionStorage.getItem(installGuardKey) || '0');
+
+        if (!shop || !shop.endsWith('.myshopify.com') || hasInstallSuccessFlag || hasQboSuccessFlag) {
+          if (shop && (hasInstallSuccessFlag || hasQboSuccessFlag)) {
+            sessionStorage.removeItem(installGuardKey);
+          }
+          return;
         }
-        return;
-      }
 
-      if (Number.isFinite(lastAttempt) && lastAttempt > 0 && now - lastAttempt < cooldownMs) {
-        return;
-      }
+        if (Number.isFinite(lastAttempt) && lastAttempt > 0 && now - lastAttempt < cooldownMs) {
+          return;
+        }
 
-      sessionStorage.setItem(installGuardKey, String(now));
-      redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
-    } catch {
-    }
+        if (cancelled) return;
+        sessionStorage.setItem(installGuardKey, String(now));
+        redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
+      } catch {
+      }
+    };
+
+    autoInstall();
+
+    return () => {
+      cancelled = true;
+    };
   }, [settingsLoaded, settings.shopifyConnected]);
 
   useEffect(() => {
@@ -446,7 +496,7 @@ function App() {
       const response = await apiFetch('/api/settings');
       if (!response.ok) return;
       const data = await response.json();
-      const fallbackShop = getCurrentShopDomain();
+      const fallbackShop = await getCurrentShopDomainWithTokenFallback();
       const nextSettings = {
         ...DEFAULT_SETTINGS,
         ...(data.settings || {}),
