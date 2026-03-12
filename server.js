@@ -226,7 +226,7 @@ function buildAppUrl(pathname) {
 }
 
 function buildQboCallbackUrl(req) {
-  return `${getRequestOrigin(req)}/api/auth/qbo/callback`
+  return buildAppUrl('/api/auth/qbo/callback')
 }
 
 function buildAppUrlFromRequest(req, pathname) {
