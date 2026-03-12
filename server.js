@@ -300,6 +300,25 @@ async function upsertShopFromShopifyOAuth({ shopDomain, accessToken, scope }) {
   return db.get(`SELECT * FROM shops WHERE shop_domain = ?`, [shopDomain])
 }
 
+async function ensureShopRecordByDomain(shopDomain) {
+  const normalizedShopDomain = String(shopDomain || '').toLowerCase().trim()
+  if (!validateShopDomain(normalizedShopDomain)) {
+    return null
+  }
+
+  const db = await getDb()
+  await db.run(
+    `INSERT INTO shops (shop_domain, is_installed, created_at, updated_at)
+     VALUES (?, 1, ?, ?)
+     ON CONFLICT(shop_domain) DO UPDATE SET
+       is_installed = 1,
+       updated_at = excluded.updated_at`,
+    [normalizedShopDomain, nowIso(), nowIso()],
+  )
+
+  return db.get(`SELECT * FROM shops WHERE shop_domain = ?`, [normalizedShopDomain])
+}
+
 async function getShopByDomain(shopDomain) {
   const db = await getDb()
   return db.get(`SELECT * FROM shops WHERE shop_domain = ?`, [shopDomain])
@@ -1582,8 +1601,11 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
     if (!shop) {
       const fallbackShopDomain = String(statePayload.shop || '').toLowerCase().trim()
       if (validateShopDomain(fallbackShopDomain)) {
-        return res.redirect(buildAppUrlFromRequest(req, `/api/auth/shopify/install?shop=${encodeURIComponent(fallbackShopDomain)}&next=qbo`))
+        shop = await ensureShopRecordByDomain(fallbackShopDomain)
       }
+    }
+
+    if (!shop) {
       return res.status(404).json({ error: 'Shop not found. Complete Shopify OAuth first.' })
     }
 
