@@ -1580,14 +1580,28 @@ app.get('/api/auth/qbo/start', async (req, res) => {
 app.get('/api/auth/qbo/callback', async (req, res) => {
   try {
     const { state, code } = req.query
-    const statePayload = verifySignedState(state)
+    const rawState = String(state || '').trim()
+
+    let statePayload = null
+    try {
+      statePayload = verifySignedState(rawState)
+    } catch {
+      if (validateShopDomain(rawState)) {
+        statePayload = {
+          type: 'qbo',
+          shop: rawState,
+        }
+      } else {
+        throw new Error('Invalid QuickBooks state payload')
+      }
+    }
 
     if (statePayload.type !== 'qbo') {
       return res.status(400).json({ error: 'Invalid QuickBooks state payload' })
     }
 
     const db = await getDb()
-    const stateShopDomain = String(statePayload.shop || '').toLowerCase().trim()
+    const stateShopDomain = String(statePayload.shop || rawState || '').toLowerCase().trim()
 
     let shop = null
     if (validateShopDomain(stateShopDomain)) {
@@ -1602,6 +1616,13 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
       const fallbackShopDomain = String(statePayload.shop || '').toLowerCase().trim()
       if (validateShopDomain(fallbackShopDomain)) {
         shop = await ensureShopRecordByDomain(fallbackShopDomain)
+      }
+    }
+
+    if (!shop) {
+      const activeShop = await getActiveInstalledShop(req)
+      if (activeShop) {
+        shop = activeShop
       }
     }
 
