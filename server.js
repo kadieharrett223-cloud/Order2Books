@@ -1517,7 +1517,7 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
         throw error
       }
 
-      const shouldStartQbo = statePayload.next === 'qbo' || !statePayload.next
+      const shouldStartQbo = statePayload.next === 'qbo'
       const isQboConnected = Boolean(
         (existingShop?.qbo_refresh_token || existingShop?.qbo_access_token) && existingShop?.qbo_realm_id,
       )
@@ -1552,7 +1552,7 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
       payload: { shop, scope: tokenResponse.scope },
     })
 
-    const shouldStartQbo = statePayload.next === 'qbo' || !statePayload.next
+    const shouldStartQbo = statePayload.next === 'qbo'
     const isQboConnected = Boolean(
       (savedShop?.qbo_refresh_token || savedShop?.qbo_access_token) && savedShop?.qbo_realm_id,
     )
