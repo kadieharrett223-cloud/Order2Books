@@ -1805,12 +1805,17 @@ app.get('/api/settings', async (req, res) => {
   const activeShop = await getActiveInstalledShop(req)
   const db = await getDb()
   const settings = await db.get('SELECT * FROM app_settings WHERE id = 1')
+  const requestedShopDomain = String(req?.shopDomainFromSession || req?.query?.shop || '').toLowerCase().trim()
+  const fallbackShopDomain = validateShopDomain(requestedShopDomain)
+    ? requestedShopDomain
+    : String(settings?.shopify_domain || '').toLowerCase().trim()
+  const resolvedShopDomain = activeShop?.shop_domain || (validateShopDomain(fallbackShopDomain) ? fallbackShopDomain : '')
 
   return res.json({
     settings: {
-      shopifyDomain: activeShop?.shop_domain || settings?.shopify_domain || '',
+      shopifyDomain: resolvedShopDomain,
       shopifyApiKey: activeShop?.shopify_access_token || settings?.shopify_api_key ? '***' : '',
-      shopifyConnected: Boolean(activeShop?.shop_domain),
+      shopifyConnected: Boolean(resolvedShopDomain),
       qboConnected: Boolean((activeShop?.qbo_refresh_token || activeShop?.qbo_access_token) && activeShop?.qbo_realm_id),
       qboCompanyName: activeShop?.qbo_realm_id ? `QuickBooks realm ${activeShop.qbo_realm_id}` : '',
       autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
