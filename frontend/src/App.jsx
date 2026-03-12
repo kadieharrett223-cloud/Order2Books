@@ -253,6 +253,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [planData, setPlanData] = useState(DEFAULT_PLAN_DATA);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialActive, setTutorialActive] = useState(false);
@@ -331,6 +332,31 @@ function App() {
     } catch {
     }
   }, [videoDemoMode]);
+
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    if (settings.shopifyConnected || demoMode || videoDemoMode) return;
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const shop = String(params.get('shop') || '').trim().toLowerCase();
+      const hasInstallSuccessFlag = params.has('shopify_connected');
+      const hasQboSuccessFlag = params.has('qbo_connected');
+      const installGuardKey = `order2books-install-redirected:${shop}`;
+
+      if (!shop || !shop.endsWith('.myshopify.com') || hasInstallSuccessFlag || hasQboSuccessFlag) {
+        return;
+      }
+
+      if (sessionStorage.getItem(installGuardKey) === 'true') {
+        return;
+      }
+
+      sessionStorage.setItem(installGuardKey, 'true');
+      window.location.href = `/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`;
+    } catch {
+    }
+  }, [settingsLoaded, settings.shopifyConnected, demoMode, videoDemoMode]);
 
 
 
@@ -442,6 +468,8 @@ function App() {
       });
       setDemoMode(isPreviewDemo);
     } catch {
+    } finally {
+      setSettingsLoaded(true);
     }
   };
 
