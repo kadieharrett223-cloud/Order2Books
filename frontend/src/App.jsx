@@ -575,14 +575,14 @@ function App() {
   const runMappingScan = async () => {
     if (videoDemoMode) {
       if (!videoDemoQboConnected) {
-        alert('Connect QuickBooks (Demo) first to load products for mapping.');
+        alert('Connect QuickBooks first to load products for mapping.');
         return;
       }
       setScanBusy(true);
       window.setTimeout(() => {
         setVideoDemoMappings(createVideoDemoMappings());
         setScanBusy(false);
-        alert('Demo scan complete. Sample products loaded for walkthrough.');
+        alert('Scan complete. Products are ready for mapping.');
       }, 900);
       return;
     }
@@ -652,7 +652,7 @@ function App() {
     ? {
       ...settings,
       qboConnected: videoDemoQboConnected,
-      qboCompanyName: videoDemoQboConnected ? 'Demo QuickBooks Company' : '',
+      qboCompanyName: videoDemoQboConnected ? 'QuickBooks Company' : '',
     }
     : demoMode
       ? {
@@ -727,7 +727,7 @@ function App() {
     const email = String(videoDemoCredentials.email || '').trim();
     const password = String(videoDemoCredentials.password || '').trim();
     if (!email || !password) {
-      alert('Enter a demo email and password to continue.');
+      alert('Enter your email and password to continue.');
       return;
     }
 
@@ -738,7 +738,7 @@ function App() {
       setVideoDemoLoginOpen(false);
       setVideoDemoLoginBusy(false);
       setVideoDemoCredentials({ email: '', password: '' });
-      alert('Demo QuickBooks connected. Sample products are ready for mapping.');
+      alert('QuickBooks connected. Products are ready for mapping.');
     }, 700);
   };
 
@@ -768,7 +768,7 @@ function App() {
             ⬆ Upgrade
           </button>
           <button className="btn-primary" onClick={() => setActivePage('settings')}>
-            {demoMode ? 'Preview Mode' : 'Connections'}
+            Connections
           </button>
         </div>
       </header>
@@ -812,11 +812,7 @@ function App() {
 
         {/* Main Content */}
         <main className="content">
-          {videoDemoMode ? (
-            <div className="demo-notice">Video demo mode is enabled. QuickBooks and mapping actions are simulated for walkthrough recording.</div>
-          ) : demoMode ? (
-            <div className="demo-notice">Demo data only, install on Shopify to use.</div>
-          ) : null}
+
 
           <div className="page-header">
             <h2 className="page-title">
@@ -845,7 +841,7 @@ function App() {
                 <div className="stat-label">Orders Synced</div>
               </div>
               <div className="stat-number">{syncsLoading ? '…' : syncedOrdersCount}</div>
-              <div className="stat-change positive">{demoMode ? '100 sample invoices synced' : `+${recentSyncCount} in last 24h`}</div>
+              <div className="stat-change positive">{demoMode ? 'Updated today' : `+${recentSyncCount} in last 24h`}</div>
             </div>
 
             <div className="stat-card stat-card-green">
@@ -854,7 +850,7 @@ function App() {
                 <div className="stat-label">Invoices Created</div>
               </div>
               <div className="stat-number">{syncsLoading ? '…' : invoiceCount}</div>
-              <div className="stat-change positive">{demoMode ? 'Large sample invoice history' : `+${recentInvoiceCount} in last 24h`}</div>
+              <div className="stat-change positive">{demoMode ? 'Recent invoice activity' : `+${recentInvoiceCount} in last 24h`}</div>
             </div>
 
             <div className="stat-card stat-card-red">
@@ -872,7 +868,7 @@ function App() {
                 <div className="stat-label">Last Sync</div>
               </div>
               <div className="stat-number-small">{formatRelativeTime(lastSync)}</div>
-              <div className="stat-change">{demoMode ? 'Sample timeline' : 'Live timeline'}</div>
+              <div className="stat-change">{demoMode ? 'Recent timeline' : 'Live timeline'}</div>
             </div>
           </div>
 
@@ -887,7 +883,7 @@ function App() {
                   <div className={`account-status ${effectiveSettings.shopifyConnected ? 'connected' : 'disconnected'}`}>
                     {effectiveSettings.shopifyConnected ? '✓ Connected' : '✕ Not connected'}
                   </div>
-                  <div className="account-meta">{demoMode ? 'Sample Shopify store preview' : 'Live Shopify connection status'}</div>
+                  <div className="account-meta">Store connection status</div>
                 </div>
               </div>
 
@@ -900,14 +896,14 @@ function App() {
                   <div className={`account-status ${effectiveSettings.qboConnected ? 'connected' : 'disconnected'}`}>
                     {effectiveSettings.qboConnected ? '✓ Connected' : '✕ Disconnected'}
                   </div>
-                  <div className="account-meta">{demoMode ? 'Sample QuickBooks connection preview' : 'Live QuickBooks connection status'}</div>
+                  <div className="account-meta">QuickBooks connection status</div>
                 </div>
                 <button
                   className="btn-connect"
                   onClick={handleQboConnectClick}
                 >
                   {videoDemoMode
-                    ? (effectiveSettings.qboConnected ? '✓ Demo Connected' : 'Connect (Demo)')
+                    ? (effectiveSettings.qboConnected ? '✓ Connected' : 'Connect')
                     : demoMode
                       ? 'Install to connect'
                       : effectiveSettings.qboConnected
@@ -942,7 +938,7 @@ function App() {
               <div className="health-pill">
                 <span className="health-icon gray">⏱</span>
                 <span className="health-label">Dashboard mode</span>
-                <strong className="health-value">{demoMode ? 'Demo data' : 'Live data'}</strong>
+                <strong className="health-value">Live data</strong>
               </div>
             </div>
 
@@ -1070,7 +1066,7 @@ function App() {
                   Paid orders from Shopify are automatically imported into QuickBooks. If QB isn't connected, orders are saved as "pending" and will sync once you connect QB in Settings. Use the search below to look up orders by their Shopify ID.
                 </p>
                 <p style={{ margin: '8px 0 0 0' }}>
-                  {demoMode ? 'Preview mode includes a large sample invoice history and refreshes automatically every 5 minutes.' : 'Orders sync automatically and the dashboard refreshes every 5 minutes.'}
+                  {demoMode ? 'The dashboard refreshes automatically every 5 minutes.' : 'Orders sync automatically and the dashboard refreshes every 5 minutes.'}
                 </p>
               </div>
               
@@ -1180,17 +1176,17 @@ function App() {
                       <div><strong>Plan:</strong> {planData.plan.name}</div>
                       <div><strong>Monthly usage:</strong> {usedOrdersThisMonth}{monthlyLimit == null ? ' / unlimited' : ` / ${monthlyLimit}`}</div>
                       <div><strong>Multi-store:</strong> {planData.plan.supportsMultiStore ? 'Enabled' : 'Starter limitation (1 store)'}</div>
-                      <div><strong>Mode:</strong> {videoDemoMode ? 'Video demo walkthrough mode' : demoMode ? 'Preview data before install' : 'Live merchant data'}</div>
+                      <div><strong>Mode:</strong> Standard</div>
                     </div>
                   </section>
 
                   <section className="section-card">
-                    <h3 className="section-title">Tutorial Video Mode</h3>
+                    <h3 className="section-title">Connection Tools</h3>
                     <div className="settings-form">
-                      <p className="form-hint">Use this temporary mode to record a walkthrough with simulated QuickBooks connection and mapping scan behavior.</p>
+                      <p className="form-hint">Use these controls to reset and rehearse the connection and mapping flow.</p>
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <button className="btn-action" onClick={handleVideoDemoToggle}>
-                          {videoDemoMode ? 'Disable Video Demo Mode' : 'Enable Video Demo Mode'}
+                          {videoDemoMode ? 'Disable Guided Connect' : 'Enable Guided Connect'}
                         </button>
                         {videoDemoMode ? (
                           <button
@@ -1206,7 +1202,7 @@ function App() {
                               setMappingItemSearchResults({});
                             }}
                           >
-                            Reset Demo Data
+                            Reset Connection State
                           </button>
                         ) : null}
                       </div>
@@ -1222,7 +1218,7 @@ function App() {
                           <div className="connected-status-label">{settings.shopifyConnected ? 'Connected to Shopify' : 'Not connected'}</div>
                           <div className="connected-status-sub">
                             {demoMode
-                              ? 'Demo mode — install the app on Shopify to connect your store'
+                              ? 'Install the app on Shopify to connect your store'
                               : effectiveSettings.shopifyConnected
                                 ? `Store: ${effectiveSettings.shopifyDomain || 'your Shopify store'}`
                                 : 'Install Order2Books from the Shopify App Store to connect automatically'}
@@ -1242,7 +1238,7 @@ function App() {
                         onClick={handleQboConnectClick}
                       >
                         {videoDemoMode
-                          ? (effectiveSettings.qboConnected ? '✓ Connected to QuickBooks (Demo)' : '🔗 Connect QuickBooks Online (Demo)')
+                          ? (effectiveSettings.qboConnected ? '✓ Connected to QuickBooks' : '🔗 Connect QuickBooks Online')
                           : demoMode
                             ? 'Install app to connect QuickBooks'
                             : effectiveSettings.qboConnected
@@ -1254,20 +1250,20 @@ function App() {
                         <div style={{ marginTop: '12px', display: 'grid', gap: '8px', maxWidth: '420px' }}>
                           <input
                             className="form-input"
-                            placeholder="Demo QuickBooks email"
+                            placeholder="QuickBooks email"
                             value={videoDemoCredentials.email}
                             onChange={(event) => setVideoDemoCredentials((prev) => ({ ...prev, email: event.target.value }))}
                           />
                           <input
                             className="form-input"
                             type="password"
-                            placeholder="Demo QuickBooks password"
+                            placeholder="QuickBooks password"
                             value={videoDemoCredentials.password}
                             onChange={(event) => setVideoDemoCredentials((prev) => ({ ...prev, password: event.target.value }))}
                           />
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button className="btn-action" onClick={submitVideoDemoQuickBooksLogin} disabled={videoDemoLoginBusy}>
-                              {videoDemoLoginBusy ? 'Connecting...' : 'Sign In (Demo)'}
+                              {videoDemoLoginBusy ? 'Connecting...' : 'Sign In'}
                             </button>
                             <button
                               className="btn-secondary"
@@ -1280,7 +1276,7 @@ function App() {
                               Cancel
                             </button>
                           </div>
-                          <p className="form-hint">Any fake credentials will work in demo mode.</p>
+                          <p className="form-hint">Sign in to continue connecting QuickBooks.</p>
                         </div>
                       ) : null}
 
@@ -1298,7 +1294,7 @@ function App() {
                               setMappingItemSearchResults({});
                             }}
                           >
-                            Disconnect Demo QuickBooks
+                            Disconnect QuickBooks
                           </button>
                         </div>
                       ) : null}
@@ -1461,7 +1457,7 @@ function App() {
                 </div>
                 {videoDemoMode && !videoDemoQboConnected ? (
                   <p className="form-hint" style={{ marginBottom: '12px' }}>
-                    Connect QuickBooks (Demo) in Settings first. Demo products load after connection.
+                    Connect QuickBooks in Settings first. Products load after connection.
                   </p>
                 ) : null}
                 <div className="table-container">
