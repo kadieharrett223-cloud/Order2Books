@@ -93,6 +93,13 @@ const DEMO_QBO_ITEMS = [
   { id: '207', name: 'Water Bottle', sku: 'BOTTLE-STEEL' },
 ];
 
+function createEmptyMappings() {
+  return {
+    autoMapped: [],
+    needsAttention: [],
+  };
+}
+
 function createVideoDemoMappings() {
   const now = new Date().toISOString();
   return {
@@ -144,11 +151,6 @@ function createVideoDemoMappings() {
         id: 'demo-attn-2',
         shopifyTitle: 'Sticker Bundle',
         shopifySku: 'STICKER-PACK',
-      },
-      {
-        id: 'demo-attn-3',
-        shopifyTitle: 'Digital Gift Card',
-        shopifySku: 'GIFT-CARD',
       },
     ],
   };
@@ -238,7 +240,7 @@ function App() {
     }
   });
   const [videoDemoQboConnected, setVideoDemoQboConnected] = useState(false);
-  const [videoDemoMappings, setVideoDemoMappings] = useState(() => createVideoDemoMappings());
+  const [videoDemoMappings, setVideoDemoMappings] = useState(() => createEmptyMappings());
   const [mappings, setMappings] = useState({ autoMapped: [], needsAttention: [] });
   const [mappingsLoading, setMappingsLoading] = useState(false);
   const [mappingEdits, setMappingEdits] = useState({});
@@ -559,6 +561,10 @@ function App() {
 
   const runMappingScan = async () => {
     if (videoDemoMode) {
+      if (!videoDemoQboConnected) {
+        alert('Connect QuickBooks (Demo) first to load products for mapping.');
+        return;
+      }
       setScanBusy(true);
       window.setTimeout(() => {
         setVideoDemoMappings(createVideoDemoMappings());
@@ -659,7 +665,7 @@ function App() {
 
     if (nextMode) {
       setVideoDemoQboConnected(false);
-      setVideoDemoMappings(createVideoDemoMappings());
+      setVideoDemoMappings(createEmptyMappings());
       setActivePage('settings');
       setSettingsTab('general');
     }
@@ -668,6 +674,7 @@ function App() {
   const handleQboConnectClick = () => {
     if (videoDemoMode) {
       setVideoDemoQboConnected(true);
+      setVideoDemoMappings(createVideoDemoMappings());
       return;
     }
 
@@ -1131,7 +1138,7 @@ function App() {
                           <button
                             className="btn-secondary"
                             onClick={() => {
-                              setVideoDemoMappings(createVideoDemoMappings());
+                              setVideoDemoMappings(createEmptyMappings());
                               setVideoDemoQboConnected(false);
                               setMappingEdits({});
                               setMappingItemSearch({});
@@ -1335,10 +1342,15 @@ function App() {
               <section className="section-card">
                 <div className="section-header">
                   <h3 className="section-title">Auto Mapped Items</h3>
-                  <button className="btn-action" onClick={runMappingScan} disabled={scanBusy}>
+                  <button className="btn-action" onClick={runMappingScan} disabled={scanBusy || (videoDemoMode && !videoDemoQboConnected)}>
                     {scanBusy ? 'Scanning...' : 'Run Scan'}
                   </button>
                 </div>
+                {videoDemoMode && !videoDemoQboConnected ? (
+                  <p className="form-hint" style={{ marginBottom: '12px' }}>
+                    Connect QuickBooks (Demo) in Settings first. Demo products load after connection.
+                  </p>
+                ) : null}
                 <div className="table-container">
                   <table className="sync-table">
                     <thead>
