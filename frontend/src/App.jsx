@@ -1500,7 +1500,7 @@ function App() {
 
               <section className="section-card">
                 <h3 className="section-title">Items Needing Attention</h3>
-                <div className="table-container">
+                <div className="table-container mapping-attention-table">
                   <table className="sync-table">
                     <thead>
                       <tr>

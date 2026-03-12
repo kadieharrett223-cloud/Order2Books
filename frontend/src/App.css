@@ -832,6 +832,12 @@
   box-shadow: 0 6px 20px rgba(0,0,0,0.08);
 }
 
+.mapping-attention-table {
+  overflow: visible;
+  position: relative;
+  z-index: 2;
+}
+
 .sync-table {
   width: 100%;
   border-collapse: collapse;
