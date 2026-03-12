@@ -111,9 +111,35 @@ function getSessionTokenFromRequest(req) {
   return String(req.get('x-shopify-session-token') || '').trim()
 }
 
+function tryAttachShopDomainFromSessionToken(req) {
+  const token = getSessionTokenFromRequest(req)
+  if (!token || !SHOPIFY_API_SECRET || !SHOPIFY_API_KEY) {
+    return false
+  }
+
+  try {
+    const payload = jwt.verify(token, SHOPIFY_API_SECRET, {
+      algorithms: ['HS256'],
+      audience: SHOPIFY_API_KEY,
+    })
+
+    req.shopifySession = payload
+    const dest = String(payload?.dest || '')
+    const shopDomain = dest.replace(/^https?:\/\//, '').toLowerCase().trim()
+    if (validateShopDomain(shopDomain)) {
+      req.shopDomainFromSession = shopDomain
+      return true
+    }
+  } catch {
+  }
+
+  return false
+}
+
 function verifyShopifySession(req, res, next) {
   const path = req.path || ''
   if (path.startsWith('/webhooks/') || path.includes('/webhooks/') || path.startsWith('/auth/') || path === '/health') {
+    tryAttachShopDomainFromSessionToken(req)
     return next()
   }
 
@@ -136,14 +162,9 @@ function verifyShopifySession(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, SHOPIFY_API_SECRET, {
-      algorithms: ['HS256'],
-      audience: SHOPIFY_API_KEY,
-    })
-
-    req.shopifySession = payload
-    const dest = String(payload?.dest || '')
-    req.shopDomainFromSession = dest.replace(/^https?:\/\//, '').toLowerCase()
+    if (!tryAttachShopDomainFromSessionToken(req)) {
+      return res.status(401).json({ error: 'Invalid Shopify session token' })
+    }
     return next()
   } catch {
     return res.status(401).json({ error: 'Invalid Shopify session token' })

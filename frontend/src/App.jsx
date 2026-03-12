@@ -692,8 +692,9 @@ function App() {
     alert('Unable to determine Shopify shop domain. Open the app from Shopify Admin and try again.');
   };
 
-  const handleQboConnectClick = () => {
-    const shop = getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
+  const handleQboConnectClick = async () => {
+    const fallbackShop = await getCurrentShopDomainWithTokenFallback();
+    const shop = fallbackShop || String(settings.shopifyDomain || '').trim().toLowerCase();
     if (shop && shop.endsWith('.myshopify.com')) {
       redirectToTop(`/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`);
       return;
