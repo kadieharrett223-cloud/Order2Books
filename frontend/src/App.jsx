@@ -314,6 +314,23 @@ function App() {
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
+      const shop = String(params.get('shop') || '').trim().toLowerCase();
+      const installed = params.has('shopify_connected');
+      if (installed && shop && shop.endsWith('.myshopify.com')) {
+        sessionStorage.setItem(SHOP_STORAGE_KEY, shop);
+        setSettings((previous) => ({
+          ...previous,
+          shopifyDomain: previous.shopifyDomain || shop,
+          shopifyConnected: true,
+        }));
+      }
+    } catch {
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
       const qboError = String(params.get('qbo_error') || '').trim();
       if (qboError === 'missing_realm') {
         alert('QuickBooks connection did not include a company (realm). Reconnect and select a QuickBooks company.');
@@ -413,9 +430,22 @@ function App() {
       const response = await apiFetch('/api/settings');
       if (!response.ok) return;
       const data = await response.json();
-      setSettings({
+      const fallbackShop = getCurrentShopDomain();
+      const nextSettings = {
         ...DEFAULT_SETTINGS,
         ...(data.settings || {}),
+      };
+
+      if (!nextSettings.shopifyConnected && fallbackShop) {
+        nextSettings.shopifyConnected = true;
+      }
+
+      if (!nextSettings.shopifyDomain && fallbackShop) {
+        nextSettings.shopifyDomain = fallbackShop;
+      }
+
+      setSettings({
+        ...nextSettings,
       });
     } catch {
     } finally {
