@@ -632,6 +632,16 @@ function App() {
   const recentActivity = visibleLogs.slice(0, 4);
   const recentTableSyncs = visibleSyncs.slice(0, 5);
 
+  const handleShopifyConnectClick = () => {
+    const shop = getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
+    if (shop && shop.endsWith('.myshopify.com')) {
+      redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
+      return;
+    }
+
+    alert('Unable to determine Shopify shop domain. Open the app from Shopify Admin and try again.');
+  };
+
   const handleQboConnectClick = () => {
     const shop = getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
     if (shop && shop.endsWith('.myshopify.com')) {
@@ -785,6 +795,14 @@ function App() {
                   </div>
                   <div className="account-meta">Store connection status</div>
                 </div>
+                {!effectiveSettings.shopifyConnected && (
+                  <button
+                    className="btn-connect"
+                    onClick={handleShopifyConnectClick}
+                  >
+                    Connect
+                  </button>
+                )}
               </div>
 
               <div className="account-arrow">→</div>
