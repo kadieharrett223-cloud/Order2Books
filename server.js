@@ -1369,7 +1369,19 @@ function createComplianceWebhookHandler(topic) {
 
 app.get('/api/health', (req, res) => {
   const plan = getActivePlanConfig()
-  res.json({ ok: true, service: 'order2books-api', time: nowIso(), plan: plan.key })
+  res.json({
+    ok: true,
+    service: 'order2books-api',
+    time: nowIso(),
+    plan: plan.key,
+    config: {
+      appUrl: APP_URL,
+      shopifyApiKeyConfigured: Boolean(SHOPIFY_API_KEY),
+      shopifyApiSecretConfigured: Boolean(SHOPIFY_API_SECRET),
+      qboClientIdConfigured: Boolean(QBO_CLIENT_ID),
+      qboClientSecretConfigured: Boolean(QBO_CLIENT_SECRET),
+    },
+  })
 })
 
 app.get('/api/plan', async (req, res) => {
