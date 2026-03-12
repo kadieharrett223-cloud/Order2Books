@@ -1431,12 +1431,11 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
         throw error
       }
 
-      const origin = getRequestOrigin(req)
       if (statePayload.next === 'qbo') {
-        return res.redirect(`${origin}/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`)
+        return res.redirect(buildAppUrl(`/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
       }
 
-      return res.redirect(`${origin}/?shopify_connected=1&shop=${encodeURIComponent(shop)}`)
+      return res.redirect(buildAppUrl(`/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
     }
 
     try {
@@ -1462,13 +1461,11 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
       payload: { shop, scope: tokenResponse.scope },
     })
 
-    const origin = getRequestOrigin(req)
-
     if (statePayload.next === 'qbo') {
-      return res.redirect(`${origin}/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`)
+      return res.redirect(buildAppUrl(`/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
     }
 
-    return res.redirect(`${origin}/?shopify_connected=1&shop=${encodeURIComponent(shop)}`)
+    return res.redirect(buildAppUrl(`/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
   } catch (error) {
     await writeSyncLog({
       eventType: 'shopify/oauth',
