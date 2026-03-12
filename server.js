@@ -159,8 +159,21 @@ function monthRangeUtc() {
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
-function buildShopifyCallbackUrl() {
-  return `${APP_URL}/api/auth/shopify/callback`
+function getRequestOrigin(req) {
+  const forwardedProto = String(req?.get?.('x-forwarded-proto') || '').split(',')[0].trim()
+  const forwardedHost = String(req?.get?.('x-forwarded-host') || '').split(',')[0].trim()
+  const host = forwardedHost || String(req?.get?.('host') || '').trim()
+  const proto = forwardedProto || (process.env.VERCEL ? 'https' : 'http')
+
+  if (host) {
+    return `${proto}://${host}`
+  }
+
+  return APP_URL
+}
+
+function buildShopifyCallbackUrl(req) {
+  return `${getRequestOrigin(req)}/api/auth/shopify/callback`
 }
 
 function buildAppUrl(pathname) {
@@ -168,8 +181,8 @@ function buildAppUrl(pathname) {
   return `${APP_URL}${normalizedPath}`
 }
 
-function buildQboCallbackUrl() {
-  return `${APP_URL}/api/auth/qbo/callback`
+function buildQboCallbackUrl(req) {
+  return `${getRequestOrigin(req)}/api/auth/qbo/callback`
 }
 
 function qboApiBaseUrl() {
@@ -543,11 +556,11 @@ async function registerComplianceWebhooks({ shopDomain, accessToken }) {
   }
 }
 
-async function exchangeQboCodeForToken({ code }) {
+async function exchangeQboCodeForToken({ code, redirectUri }) {
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    redirect_uri: buildQboCallbackUrl(),
+    redirect_uri: redirectUri || buildQboCallbackUrl(),
   })
 
   const response = await fetch('https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer', {
@@ -1359,7 +1372,7 @@ app.get('/api/auth/shopify/install', async (req, res) => {
       ts: Date.now(),
     })
 
-    const redirectUri = buildShopifyCallbackUrl()
+    const redirectUri = buildShopifyCallbackUrl(req)
     const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${encodeURIComponent(
       SHOPIFY_API_KEY,
     )}&scope=${encodeURIComponent(SHOPIFY_SCOPES)}&redirect_uri=${encodeURIComponent(
@@ -1452,7 +1465,7 @@ app.get('/api/auth/qbo/start', async (req, res) => {
       `client_id=${encodeURIComponent(QBO_CLIENT_ID)}` +
       `&response_type=code` +
       `&scope=${encodeURIComponent(QBO_SCOPES)}` +
-      `&redirect_uri=${encodeURIComponent(buildQboCallbackUrl())}` +
+      `&redirect_uri=${encodeURIComponent(buildQboCallbackUrl(req))}` +
       `&state=${encodeURIComponent(state)}`
 
     return res.redirect(authorizeUrl)
@@ -1492,7 +1505,7 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
       return res.redirect(`${APP_URL}/?qbo_error=missing_realm&shop=${encodeURIComponent(shop.shop_domain)}`)
     }
 
-    const token = await exchangeQboCodeForToken({ code })
+    const token = await exchangeQboCodeForToken({ code, redirectUri: buildQboCallbackUrl(req) })
     const expiresAt = new Date(Date.now() + Number(token.expires_in || 3600) * 1000).toISOString()
 
     await updateQboTokensForShop({
