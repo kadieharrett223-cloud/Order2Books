@@ -502,10 +502,6 @@ function App() {
         ...(data.settings || {}),
       };
 
-      if (!nextSettings.shopifyConnected && fallbackShop) {
-        nextSettings.shopifyConnected = true;
-      }
-
       if (!nextSettings.shopifyDomain && fallbackShop) {
         nextSettings.shopifyDomain = fallbackShop;
       }
