@@ -1403,6 +1403,9 @@ app.get('/api/health', (req, res) => {
       shopifyApiSecretConfigured: Boolean(SHOPIFY_API_SECRET),
       qboClientIdConfigured: Boolean(QBO_CLIENT_ID),
       qboClientSecretConfigured: Boolean(QBO_CLIENT_SECRET),
+      qboEnv: QBO_ENV,
+      qboScopes: QBO_SCOPES,
+      qboRedirectUri: buildQboCallbackUrl(req),
     },
   })
 })
