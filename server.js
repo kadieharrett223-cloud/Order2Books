@@ -1489,6 +1489,7 @@ app.get('/api/health', (req, res) => {
       qboEnv: QBO_ENV,
       qboScopes: QBO_SCOPES,
       qboRedirectUri: buildQboCallbackUrl(req),
+      databaseDriver: process.env.POSTGRES_URL ? 'postgres' : 'sqlite',
     },
   })
 })
