@@ -247,8 +247,13 @@ function buildEmbeddedShopifyAppUrl(shopDomain, query = {}) {
     return ''
   }
 
+  const storeHandle = normalizedShopDomain.replace(/\.myshopify\.com$/i, '')
+  if (!storeHandle) {
+    return ''
+  }
+
   const qs = new URLSearchParams(query).toString()
-  return `https://${normalizedShopDomain}/admin/apps/${encodeURIComponent(SHOPIFY_API_KEY)}${qs ? `?${qs}` : ''}`
+  return `https://admin.shopify.com/store/${encodeURIComponent(storeHandle)}/apps/${encodeURIComponent(SHOPIFY_API_KEY)}${qs ? `?${qs}` : ''}`
 }
 
 function shouldRedirectToCanonicalAppOrigin(req) {
@@ -1721,7 +1726,12 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
         message: 'QuickBooks callback missing realmId',
         payload: req.query,
       })
-      return res.redirect(buildAppUrlFromRequest(req, `/?qbo_error=missing_realm&shop=${encodeURIComponent(shop.shop_domain)}`))
+      const embeddedAppUrl = buildEmbeddedShopifyAppUrl(shop.shop_domain, {
+        qbo_error: 'missing_realm',
+        shop: shop.shop_domain,
+      })
+      const fallbackUrl = buildAppUrlFromRequest(req, `/?qbo_error=missing_realm&shop=${encodeURIComponent(shop.shop_domain)}`)
+      return res.redirect(embeddedAppUrl || fallbackUrl)
     }
 
     const token = await exchangeQboCodeForToken({ code, redirectUri: buildQboCallbackUrl(req) })
@@ -1748,7 +1758,12 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
       console.error('Post-install mapping scan failed:', error)
     })
 
-    return res.redirect(buildAppUrlFromRequest(req, `/?qbo_connected=1&shop=${encodeURIComponent(shop.shop_domain)}`))
+    const embeddedAppUrl = buildEmbeddedShopifyAppUrl(shop.shop_domain, {
+      qbo_connected: 1,
+      shop: shop.shop_domain,
+    })
+    const fallbackUrl = buildAppUrlFromRequest(req, `/?qbo_connected=1&shop=${encodeURIComponent(shop.shop_domain)}`)
+    return res.redirect(embeddedAppUrl || fallbackUrl)
   } catch (error) {
     await writeSyncLog({
       eventType: 'qbo/oauth',
