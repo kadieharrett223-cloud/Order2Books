@@ -109,6 +109,9 @@ async function apiFetch(url, options = {}) {
           requestUrl = `${request.pathname}${request.search}`;
         }
       }
+
+      const appOrigin = new URL(window.location.href).origin;
+      requestUrl = new URL(requestUrl, appOrigin).toString();
     }
   } catch {
   }
