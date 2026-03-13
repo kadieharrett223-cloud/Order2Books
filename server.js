@@ -429,7 +429,9 @@ async function ensureShopRecordByDomain(shopDomain) {
     [normalizedShopDomain, nowIso(), nowIso()],
   )
 
-  return db.get(`SELECT * FROM shops WHERE shop_domain = ?`, [normalizedShopDomain])
+  const shop = await db.get(`SELECT * FROM shops WHERE shop_domain = ?`, [normalizedShopDomain])
+  await persistPrimaryShopifyDomain(normalizedShopDomain)
+  return shop
 }
 
 async function getShopByDomain(shopDomain) {
@@ -451,6 +453,32 @@ async function countInstalledShops() {
 async function getAppSettingsRecord() {
   const db = await getDb()
   return db.get('SELECT * FROM app_settings WHERE id = 1')
+}
+
+async function persistPrimaryShopifyDomain(shopDomain) {
+  const normalized = String(shopDomain || '').toLowerCase().trim()
+  if (!validateShopDomain(normalized)) {
+    return
+  }
+
+  const db = await getDb()
+  const existing = await db.get('SELECT id FROM app_settings WHERE id = 1')
+  if (existing) {
+    await db.run(
+      `UPDATE app_settings
+       SET shopify_domain = ?,
+           updated_at = ?
+       WHERE id = 1`,
+      [normalized, nowIso()],
+    )
+    return
+  }
+
+  await db.run(
+    `INSERT INTO app_settings (id, shopify_domain, created_at, updated_at)
+     VALUES (1, ?, ?, ?)`,
+    [normalized, nowIso(), nowIso()],
+  )
 }
 
 function normalizeCaptureMode(value) {
@@ -1656,6 +1684,7 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
       accessToken: tokenResponse.access_token,
       scope: tokenResponse.scope,
     })
+    await persistPrimaryShopifyDomain(savedShop.shop_domain)
 
     await writeSyncLog({
       shopId: savedShop.id,
