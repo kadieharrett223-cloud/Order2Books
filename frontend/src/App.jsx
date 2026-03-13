@@ -352,8 +352,8 @@ function App() {
         const cooldownMs = 30 * 1000;
         const lastAttempt = Number(sessionStorage.getItem(installGuardKey) || '0');
 
-        if (!shop || !shop.endsWith('.myshopify.com') || hasInstallSuccessFlag || hasQboSuccessFlag) {
-          if (shop && (hasInstallSuccessFlag || hasQboSuccessFlag)) {
+        if ((hasInstallSuccessFlag || hasQboSuccessFlag)) {
+          if (shop) {
             sessionStorage.removeItem(installGuardKey);
           }
           return;
@@ -365,7 +365,11 @@ function App() {
 
         if (cancelled) return;
         sessionStorage.setItem(installGuardKey, String(now));
-        redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
+        if (shop && shop.endsWith('.myshopify.com')) {
+          redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
+        } else {
+          redirectToTop('/api/auth/shopify/install');
+        }
       } catch {
       }
     };
