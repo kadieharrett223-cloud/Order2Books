@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import './App.css';
 
 const SHOP_STORAGE_KEY = 'order2books-active-shop';
+const CONNECTION_STATE_KEY = 'order2books-connection-state';
 
 function persistShopDomain(shopDomain) {
   try {
@@ -31,6 +32,45 @@ function readStoredShopDomain() {
   }
 
   return '';
+}
+
+function persistConnectionStateSnapshot(settings) {
+  try {
+    const snapshot = {
+      shopifyDomain: String(settings?.shopifyDomain || '').trim().toLowerCase(),
+      shopifyConnected: Boolean(settings?.shopifyConnected),
+      qboConnected: Boolean(settings?.qboConnected),
+      qboCompanyName: String(settings?.qboCompanyName || ''),
+      autoDecrementInventory: Boolean(settings?.autoDecrementInventory),
+      autoCreateQboItems: settings?.autoCreateQboItems !== false,
+      captureMode: String(settings?.captureMode || 'auto'),
+    };
+    localStorage.setItem(CONNECTION_STATE_KEY, JSON.stringify(snapshot));
+  } catch {
+  }
+}
+
+function readConnectionStateSnapshot() {
+  try {
+    const raw = localStorage.getItem(CONNECTION_STATE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      shopifyDomain: String(parsed?.shopifyDomain || '').trim().toLowerCase(),
+      shopifyConnected: Boolean(parsed?.shopifyConnected),
+      qboConnected: Boolean(parsed?.qboConnected),
+      qboCompanyName: String(parsed?.qboCompanyName || ''),
+      autoDecrementInventory: Boolean(parsed?.autoDecrementInventory),
+      autoCreateQboItems: parsed?.autoCreateQboItems !== false,
+      captureMode: String(parsed?.captureMode || 'auto'),
+    };
+  } catch {
+  }
+
+  return null;
 }
 
 function getCurrentShopDomain() {
@@ -420,7 +460,7 @@ function App() {
       const shop = String(params.get('shop') || '').trim().toLowerCase();
       const installed = params.has('shopify_connected');
       if (installed && shop && shop.endsWith('.myshopify.com')) {
-        sessionStorage.setItem(SHOP_STORAGE_KEY, shop);
+        persistShopDomain(shop);
         setSettings((previous) => ({
           ...previous,
           shopifyDomain: previous.shopifyDomain || shop,
@@ -434,9 +474,19 @@ function App() {
           qboConnected: true,
         }));
       }
+
+      if (installed || params.has('qbo_connected')) {
+        setTimeout(() => {
+          loadSettings();
+        }, 600);
+      }
     } catch {
     }
   }, []);
+
+  useEffect(() => {
+    persistConnectionStateSnapshot(settings);
+  }, [settings]);
 
   useEffect(() => {
     try {
@@ -538,11 +588,15 @@ function App() {
   const loadSettings = async () => {
     try {
       const response = await apiFetch('/api/settings');
-      if (!response.ok) return;
+      if (!response.ok) {
+        throw new Error('Failed to load settings');
+      }
       const data = await response.json();
       const fallbackShop = await getCurrentShopDomainWithTokenFallback();
+      const cached = readConnectionStateSnapshot();
       const nextSettings = {
         ...DEFAULT_SETTINGS,
+        ...(cached || {}),
         ...(data.settings || {}),
       };
 
@@ -557,7 +611,18 @@ function App() {
       setSettings({
         ...nextSettings,
       });
+      persistConnectionStateSnapshot(nextSettings);
     } catch {
+      const cached = readConnectionStateSnapshot();
+      if (cached) {
+        setSettings((previous) => ({
+          ...previous,
+          ...cached,
+          shopifyDomain: previous.shopifyDomain || cached.shopifyDomain,
+          shopifyConnected: Boolean(previous.shopifyConnected || cached.shopifyConnected),
+          qboConnected: Boolean(previous.qboConnected || cached.qboConnected),
+        }));
+      }
     } finally {
       setSettingsLoaded(true);
     }
