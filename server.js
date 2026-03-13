@@ -2175,6 +2175,54 @@ app.get('/api/settings', async (req, res) => {
   })
 })
 
+// Lightweight debug endpoint to inspect stored QuickBooks tokens and optionally test a live API call.
+app.get('/api/debug/qbo-status', async (req, res) => {
+  try {
+    const activeShop = await getActiveInstalledShop(req)
+    if (!activeShop) {
+      return res.status(404).json({ error: 'Active shop not found. Launch the app from a connected Shopify store.' })
+    }
+
+    const expiresAtMs = activeShop.qbo_token_expires_at ? new Date(activeShop.qbo_token_expires_at).getTime() : null
+    const payload = {
+      shopDomain: activeShop.shop_domain,
+      hasAccessToken: Boolean(activeShop.qbo_access_token),
+      hasRefreshToken: Boolean(activeShop.qbo_refresh_token),
+      realmId: activeShop.qbo_realm_id || '',
+      tokenExpiresAt: activeShop.qbo_token_expires_at || null,
+      tokenExpiresInMs: expiresAtMs == null ? null : expiresAtMs - Date.now(),
+      tokenExpired: expiresAtMs == null ? null : expiresAtMs <= Date.now(),
+    }
+
+    const shouldTestCompanyInfo =
+      String(req.query.test || '').trim().toLowerCase() === 'company' && activeShop.qbo_realm_id && activeShop.qbo_access_token
+
+    if (shouldTestCompanyInfo) {
+      try {
+        const response = await qboRequest({
+          shop: activeShop,
+          method: 'GET',
+          path: `/v3/company/${activeShop.qbo_realm_id}/companyinfo/${activeShop.qbo_realm_id}?minorversion=${QBO_MINOR_VERSION}`,
+        })
+        payload.companyInfoTest = {
+          ok: true,
+          companyName: response?.CompanyInfo?.CompanyName || '',
+          companyId: response?.CompanyInfo?.Id || '',
+        }
+      } catch (error) {
+        payload.companyInfoTest = {
+          ok: false,
+          error: error?.message || String(error),
+        }
+      }
+    }
+
+    return res.json(payload)
+  } catch (error) {
+    return res.status(500).json({ error: error.message })
+  }
+})
+
 app.post('/api/settings', async (req, res) => {
   const activeShop = await getActiveInstalledShop(req)
   if (!activeShop) {

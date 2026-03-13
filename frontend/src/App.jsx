@@ -397,6 +397,13 @@ function App() {
           shopifyConnected: true,
         }));
       }
+
+      if (params.has('qbo_connected')) {
+        setSettings((previous) => ({
+          ...previous,
+          qboConnected: true,
+        }));
+      }
     } catch {
     }
   }, []);
