@@ -100,7 +100,7 @@ async function apiFetch(url, options = {}) {
 
   try {
     if (typeof window !== 'undefined' && typeof url === 'string' && url.startsWith('/api/')) {
-      const shop = getCurrentShopDomain();
+      const shop = await getCurrentShopDomainWithTokenFallback();
 
       if (shop && shop.endsWith('.myshopify.com')) {
         const request = new URL(url, window.location.origin);
