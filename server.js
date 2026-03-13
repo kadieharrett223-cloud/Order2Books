@@ -342,6 +342,35 @@ function setActiveShopCookie(res, shopDomain) {
   })
 }
 
+function extractShopDomainFromHostParam(hostParam) {
+  const raw = String(hostParam || '').trim()
+  if (!raw) {
+    return ''
+  }
+
+  try {
+    const decoded = Buffer.from(raw, 'base64').toString('utf8')
+    const normalized = decoded.trim().toLowerCase()
+
+    if (validateShopDomain(normalized)) {
+      return normalized
+    }
+
+    const storeMatch = normalized.match(/store\/(\w[\w-]*)/)
+    if (storeMatch && storeMatch[1]) {
+      return `${storeMatch[1].toLowerCase()}.myshopify.com`
+    }
+
+    const subdomainMatch = normalized.match(/([\w-]+\.myshopify\.com)/)
+    if (subdomainMatch && subdomainMatch[1]) {
+      return subdomainMatch[1].toLowerCase()
+    }
+  } catch {
+  }
+
+  return ''
+}
+
 function verifyShopifyCallbackHmac(queryParams) {
   if (!SHOPIFY_API_SECRET) {
     throw new Error('SHOPIFY_API_SECRET is required')
@@ -1524,7 +1553,11 @@ app.get('/api/auth/shopify/install', async (req, res) => {
 
     const shopFromQuery = String(req.query.shop || '').trim().toLowerCase()
     const shopFromSession = String(req.shopDomainFromSession || '').trim().toLowerCase()
-    const shop = validateShopDomain(shopFromQuery) ? shopFromQuery : shopFromSession
+    const shopFromHost = extractShopDomainFromHostParam(req.query.host)
+    const shop =
+      (validateShopDomain(shopFromQuery) ? shopFromQuery : '') ||
+      (validateShopDomain(shopFromSession) ? shopFromSession : '') ||
+      (validateShopDomain(shopFromHost) ? shopFromHost : '')
     const next = String(req.query.next || '').trim().toLowerCase()
 
     if (!validateShopDomain(shop)) {
