@@ -3,17 +3,47 @@ import './App.css';
 
 const SHOP_STORAGE_KEY = 'order2books-active-shop';
 
+function persistShopDomain(shopDomain) {
+  try {
+    if (shopDomain && shopDomain.endsWith('.myshopify.com')) {
+      sessionStorage.setItem(SHOP_STORAGE_KEY, shopDomain);
+      localStorage.setItem(SHOP_STORAGE_KEY, shopDomain);
+    }
+  } catch {
+  }
+}
+
+function readStoredShopDomain() {
+  try {
+    const fromSession = String(sessionStorage.getItem(SHOP_STORAGE_KEY) || '').trim().toLowerCase();
+    if (fromSession && fromSession.endsWith('.myshopify.com')) {
+      return fromSession;
+    }
+  } catch {
+  }
+
+  try {
+    const fromLocal = String(localStorage.getItem(SHOP_STORAGE_KEY) || '').trim().toLowerCase();
+    if (fromLocal && fromLocal.endsWith('.myshopify.com')) {
+      return fromLocal;
+    }
+  } catch {
+  }
+
+  return '';
+}
+
 function getCurrentShopDomain() {
   try {
     const params = new URLSearchParams(window.location.search);
     const fromQuery = String(params.get('shop') || '').trim().toLowerCase();
     if (fromQuery && fromQuery.endsWith('.myshopify.com')) {
-      sessionStorage.setItem(SHOP_STORAGE_KEY, fromQuery);
+      persistShopDomain(fromQuery);
       return fromQuery;
     }
 
-    const fromStorage = String(sessionStorage.getItem(SHOP_STORAGE_KEY) || '').trim().toLowerCase();
-    if (fromStorage && fromStorage.endsWith('.myshopify.com')) {
+    const fromStorage = readStoredShopDomain();
+    if (fromStorage) {
       return fromStorage;
     }
   } catch {
@@ -52,7 +82,7 @@ async function getCurrentShopDomainWithTokenFallback() {
   const fromToken = decodeShopFromSessionToken(token);
   if (fromToken) {
     try {
-      sessionStorage.setItem(SHOP_STORAGE_KEY, fromToken);
+      persistShopDomain(fromToken);
     } catch {
     }
     return fromToken;
@@ -518,6 +548,10 @@ function App() {
 
       if (!nextSettings.shopifyDomain && fallbackShop) {
         nextSettings.shopifyDomain = fallbackShop;
+      }
+
+      if (nextSettings.shopifyDomain) {
+        persistShopDomain(nextSettings.shopifyDomain);
       }
 
       setSettings({
