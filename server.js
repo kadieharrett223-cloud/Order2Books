@@ -2117,14 +2117,20 @@ app.get('/api/settings', async (req, res) => {
     ? requestedShopDomain
     : String(settings?.shopify_domain || '').toLowerCase().trim()
   const resolvedShopDomain = activeShop?.shop_domain || (validateShopDomain(fallbackShopDomain) ? fallbackShopDomain : '')
+  const resolvedShop =
+    activeShop ||
+    (validateShopDomain(resolvedShopDomain) ? await getShopByDomain(resolvedShopDomain) : null)
+  const hasQboConnection = Boolean(
+    (resolvedShop?.qbo_refresh_token || resolvedShop?.qbo_access_token) && resolvedShop?.qbo_realm_id,
+  )
 
   return res.json({
     settings: {
       shopifyDomain: resolvedShopDomain,
-      shopifyApiKey: activeShop?.shopify_access_token || settings?.shopify_api_key ? '***' : '',
+      shopifyApiKey: resolvedShop?.shopify_access_token || settings?.shopify_api_key ? '***' : '',
       shopifyConnected: Boolean(resolvedShopDomain),
-      qboConnected: Boolean((activeShop?.qbo_refresh_token || activeShop?.qbo_access_token) && activeShop?.qbo_realm_id),
-      qboCompanyName: activeShop?.qbo_realm_id ? `QuickBooks realm ${activeShop.qbo_realm_id}` : '',
+      qboConnected: hasQboConnection,
+      qboCompanyName: resolvedShop?.qbo_realm_id ? `QuickBooks realm ${resolvedShop.qbo_realm_id}` : '',
       autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
       autoCreateQboItems: settings?.auto_create_qbo_items !== 0,
       captureMode: normalizeCaptureMode(settings?.capture_mode),
