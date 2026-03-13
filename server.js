@@ -1522,7 +1522,9 @@ app.get('/api/auth/shopify/install', async (req, res) => {
       return res.redirect(buildAppUrlFromRequest(req, `/api/auth/shopify/install?${new URLSearchParams(req.query).toString()}`))
     }
 
-    const shop = String(req.query.shop || '').trim().toLowerCase()
+    const shopFromQuery = String(req.query.shop || '').trim().toLowerCase()
+    const shopFromSession = String(req.shopDomainFromSession || '').trim().toLowerCase()
+    const shop = validateShopDomain(shopFromQuery) ? shopFromQuery : shopFromSession
     const next = String(req.query.next || '').trim().toLowerCase()
 
     if (!validateShopDomain(shop)) {
