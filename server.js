@@ -51,7 +51,7 @@ const STATE_SECRET = process.env.STATE_SECRET || 'dev-state-secret'
 const QBO_CLIENT_ID = process.env.QBO_CLIENT_ID || ''
 const QBO_CLIENT_SECRET = process.env.QBO_CLIENT_SECRET || ''
 const QBO_REDIRECT_URI = String(process.env.QBO_REDIRECT_URI || '').trim()
-const QBO_SCOPES = process.env.QBO_SCOPES || 'com.intuit.quickbooks.accounting'
+const QBO_SCOPES = 'com.intuit.quickbooks.accounting'
 const QBO_ENV = process.env.QBO_ENV === 'production' ? 'production' : 'sandbox'
 const QBO_MINOR_VERSION = process.env.QBO_MINOR_VERSION || '75'
 const QBO_ITEM_REF = process.env.QBO_ITEM_REF || '1'
