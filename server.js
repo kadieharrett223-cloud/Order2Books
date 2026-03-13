@@ -302,6 +302,45 @@ function validateShopDomain(shopDomain) {
   return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i.test(String(shopDomain || ''))
 }
 
+function getCookieValue(req, cookieName) {
+  const rawCookie = String(req?.get?.('cookie') || '')
+  if (!rawCookie) {
+    return ''
+  }
+
+  const needle = `${cookieName}=`.toLowerCase()
+  for (const segment of rawCookie.split(';')) {
+    const pair = String(segment || '').trim()
+    if (!pair.toLowerCase().startsWith(needle)) {
+      continue
+    }
+
+    const value = pair.slice(cookieName.length + 1)
+    try {
+      return decodeURIComponent(value)
+    } catch {
+      return value
+    }
+  }
+
+  return ''
+}
+
+function setActiveShopCookie(res, shopDomain) {
+  const normalizedShopDomain = String(shopDomain || '').toLowerCase().trim()
+  if (!validateShopDomain(normalizedShopDomain)) {
+    return
+  }
+
+  res.cookie('order2books_shop', normalizedShopDomain, {
+    httpOnly: false,
+    secure: true,
+    sameSite: 'none',
+    path: '/',
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  })
+}
+
 function verifyShopifyCallbackHmac(queryParams) {
   if (!SHOPIFY_API_SECRET) {
     throw new Error('SHOPIFY_API_SECRET is required')
@@ -401,7 +440,11 @@ async function getActiveInstalledShop(req) {
   const db = await getDb()
   const shopFromSession = String(req?.shopDomainFromSession || '').toLowerCase().trim()
   const shopFromQuery = String(req?.query?.shop || '').toLowerCase().trim()
-  const requestedShopDomain = shopFromSession || (validateShopDomain(shopFromQuery) ? shopFromQuery : '')
+  const shopFromCookie = String(getCookieValue(req, 'order2books_shop') || '').toLowerCase().trim()
+  const requestedShopDomain =
+    shopFromSession ||
+    (validateShopDomain(shopFromQuery) ? shopFromQuery : '') ||
+    (validateShopDomain(shopFromCookie) ? shopFromCookie : '')
 
   if (!requestedShopDomain) {
     const installedShops = await db.all(
@@ -1546,6 +1589,7 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
       )
 
       if (shouldStartQbo && !isQboConnected) {
+        setActiveShopCookie(res, shop)
         return res.redirect(buildAppUrlFromRequest(req, `/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
       }
 
@@ -1554,9 +1598,11 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
         shop,
       })
       if (embeddedAppUrl) {
+        setActiveShopCookie(res, shop)
         return res.redirect(embeddedAppUrl)
       }
 
+      setActiveShopCookie(res, shop)
       return res.redirect(buildAppUrlFromRequest(req, `/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
     }
 
@@ -1589,6 +1635,7 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
     )
 
     if (shouldStartQbo && !isQboConnected) {
+      setActiveShopCookie(res, shop)
       return res.redirect(buildAppUrlFromRequest(req, `/api/auth/qbo/start?shop=${encodeURIComponent(shop)}`))
     }
 
@@ -1597,9 +1644,11 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
       shop,
     })
     if (embeddedAppUrl) {
+      setActiveShopCookie(res, shop)
       return res.redirect(embeddedAppUrl)
     }
 
+    setActiveShopCookie(res, shop)
     return res.redirect(buildAppUrlFromRequest(req, `/?shopify_connected=1&shop=${encodeURIComponent(shop)}`))
   } catch (error) {
     await writeSyncLog({
@@ -1731,6 +1780,7 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
         shop: shop.shop_domain,
       })
       const fallbackUrl = buildAppUrlFromRequest(req, `/?qbo_error=missing_realm&shop=${encodeURIComponent(shop.shop_domain)}`)
+      setActiveShopCookie(res, shop.shop_domain)
       return res.redirect(embeddedAppUrl || fallbackUrl)
     }
 
@@ -1763,6 +1813,7 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
       shop: shop.shop_domain,
     })
     const fallbackUrl = buildAppUrlFromRequest(req, `/?qbo_connected=1&shop=${encodeURIComponent(shop.shop_domain)}`)
+    setActiveShopCookie(res, shop.shop_domain)
     return res.redirect(embeddedAppUrl || fallbackUrl)
   } catch (error) {
     await writeSyncLog({
