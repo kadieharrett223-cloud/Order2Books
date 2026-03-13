@@ -160,6 +160,24 @@ function verifyShopifySession(req, res, next) {
     return next()
   }
 
+  const allowTokenlessPaths = new Set(['/settings', '/debug/qbo-status'])
+  if (allowTokenlessPaths.has(path)) {
+    tryAttachShopDomainFromSessionToken(req)
+
+    if (!req.shopDomainFromSession) {
+      const shopFromQuery = String(req.query?.shop || '').toLowerCase().trim()
+      const shopFromCookie = String(getCookieValue(req, 'order2books_shop') || '').toLowerCase().trim()
+
+      if (validateShopDomain(shopFromQuery)) {
+        req.shopDomainFromSession = shopFromQuery
+      } else if (validateShopDomain(shopFromCookie)) {
+        req.shopDomainFromSession = shopFromCookie
+      }
+    }
+
+    return next()
+  }
+
   const token = getSessionTokenFromRequest(req)
   if (!token) {
     const fallbackShop = String(req.query?.shop || '').toLowerCase().trim()
