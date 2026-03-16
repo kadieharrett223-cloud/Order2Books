@@ -168,45 +168,32 @@ async function getCurrentShopDomainWithTokenFallback() {
 }
 
 function redirectToTop(url) {
-  let targetUrl = url;
-
-  try {
-    if (typeof window !== 'undefined' && String(url || '').startsWith('/')) {
-      // Check if this is a Shopify embedded app (admin.shopify.com context)
-      const isEmbeddedApp = window.location.origin.includes('admin.shopify.com');
-      
-      if (isEmbeddedApp) {
-        // For embedded apps, we need to construct the URL to our own domain
-        // Get the app's own origin - try to extract from window.shopify context or use a fallback
-        let appOrigin = 'https://order2-books.vercel.app'; // Fallback
-        
-        try {
-          // Try to get from window globals if Shopify provides it
-          if (window.appOrigin) {
-            appOrigin = window.appOrigin;
-          }
-        } catch {
-          // Use fallback
-        }
-        
-        targetUrl = new URL(url, appOrigin).toString();
-      } else {
-        // For standalone context, use window.location.origin
-        targetUrl = new URL(String(url || ''), window.location.origin).toString();
-      }
-    }
-  } catch {
-    targetUrl = url;
-  }
+  let targetUrl = String(url || '');
 
   try {
     if (typeof window !== 'undefined' && window.top && window.top !== window.self) {
+      // In an iframe - break out and navigate the top window
+      // For relative URLs in an iframe, construct the full URL to our app
+      if (targetUrl.startsWith('/')) {
+        const isEmbedded = window.location.origin.includes('admin.shopify.com');
+        if (isEmbedded) {
+          // Construct full URL using location.host from parent if possible
+          targetUrl = `https://order2-books.vercel.app${targetUrl}`;
+        } else {
+          targetUrl = new URL(targetUrl, window.location.origin).toString();
+        }
+      }
       window.top.location.href = targetUrl;
       return;
     }
-  } catch {
+  } catch (e) {
+    console.warn('Cannot break out of iframe:', e);
   }
 
+  // Fallback: navigate in current window
+  if (targetUrl.startsWith('/')) {
+    targetUrl = new URL(targetUrl, window.location.origin).toString();
+  }
   window.location.href = targetUrl;
 }
 
