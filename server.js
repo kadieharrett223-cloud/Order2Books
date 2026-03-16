@@ -160,18 +160,14 @@ function verifyShopifySession(req, res, next) {
     return next()
   }
 
-  const allowTokenlessPaths = new Set(['/settings', '/debug/qbo-status'])
+  const allowTokenlessPaths = new Set(['/settings', '/debug/qbo-status', '/me'])
   if (allowTokenlessPaths.has(path)) {
     tryAttachShopDomainFromSessionToken(req)
 
     if (!req.shopDomainFromSession) {
-      const shopFromQuery = String(req.query?.shop || '').toLowerCase().trim()
-      const shopFromCookie = String(getCookieValue(req, 'order2books_shop') || '').toLowerCase().trim()
-
-      if (validateShopDomain(shopFromQuery)) {
-        req.shopDomainFromSession = shopFromQuery
-      } else if (validateShopDomain(shopFromCookie)) {
-        req.shopDomainFromSession = shopFromCookie
+      const resolvedShopDomain = resolveShopDomainFromRequest(req)
+      if (resolvedShopDomain) {
+        req.shopDomainFromSession = resolvedShopDomain
       }
     }
 
@@ -340,6 +336,52 @@ function getCookieValue(req, cookieName) {
     } catch {
       return value
     }
+  }
+
+  return ''
+}
+
+function resolveShopDomainFromSignedState(stateValue) {
+  const rawState = String(stateValue || '').trim()
+  if (!rawState) {
+    return ''
+  }
+
+  try {
+    const payload = verifySignedState(rawState)
+    const signedStateShop = String(payload?.shop || '').toLowerCase().trim()
+    if (validateShopDomain(signedStateShop)) {
+      return signedStateShop
+    }
+  } catch {
+  }
+
+  if (validateShopDomain(rawState)) {
+    return rawState.toLowerCase()
+  }
+
+  return ''
+}
+
+function resolveShopDomainFromRequest(req) {
+  const shopFromSession = String(req?.shopDomainFromSession || '').toLowerCase().trim()
+  if (validateShopDomain(shopFromSession)) {
+    return shopFromSession
+  }
+
+  const shopFromSignedState = resolveShopDomainFromSignedState(req?.query?.state)
+  if (validateShopDomain(shopFromSignedState)) {
+    return shopFromSignedState
+  }
+
+  const shopFromCookie = String(getCookieValue(req, 'order2books_shop') || '').toLowerCase().trim()
+  if (validateShopDomain(shopFromCookie)) {
+    return shopFromCookie
+  }
+
+  const shopFromQuery = String(req?.query?.shop || '').toLowerCase().trim()
+  if (validateShopDomain(shopFromQuery)) {
+    return shopFromQuery
   }
 
   return ''
@@ -514,13 +556,7 @@ async function getCaptureMode() {
 
 async function getActiveInstalledShop(req) {
   const db = await getDb()
-  const shopFromSession = String(req?.shopDomainFromSession || '').toLowerCase().trim()
-  const shopFromQuery = String(req?.query?.shop || '').toLowerCase().trim()
-  const shopFromCookie = String(getCookieValue(req, 'order2books_shop') || '').toLowerCase().trim()
-  const requestedShopDomain =
-    shopFromSession ||
-    (validateShopDomain(shopFromQuery) ? shopFromQuery : '') ||
-    (validateShopDomain(shopFromCookie) ? shopFromCookie : '')
+  const requestedShopDomain = resolveShopDomainFromRequest(req)
 
   if (!requestedShopDomain) {
     const installedShops = await db.all(
@@ -2196,7 +2232,7 @@ app.get('/api/settings', async (req, res) => {
   const activeShop = await getActiveInstalledShop(req)
   const db = await getDb()
   const settings = await db.get('SELECT * FROM app_settings WHERE id = 1')
-  const requestedShopDomain = String(req?.shopDomainFromSession || req?.query?.shop || '').toLowerCase().trim()
+  const requestedShopDomain = resolveShopDomainFromRequest(req)
   const fallbackShopDomain = validateShopDomain(requestedShopDomain)
     ? requestedShopDomain
     : String(settings?.shopify_domain || '').toLowerCase().trim()
@@ -2209,6 +2245,9 @@ app.get('/api/settings', async (req, res) => {
   )
 
   return res.json({
+    shop: resolvedShopDomain || null,
+    shopify_connected: Boolean(resolvedShopDomain),
+    quickbooks_connected: hasQboConnection,
     settings: {
       shopifyDomain: resolvedShopDomain,
       shopifyApiKey: resolvedShop?.shopify_access_token || settings?.shopify_api_key ? '***' : '',
@@ -2218,6 +2257,33 @@ app.get('/api/settings', async (req, res) => {
       autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
       autoCreateQboItems: settings?.auto_create_qbo_items !== 0,
       captureMode: normalizeCaptureMode(settings?.capture_mode),
+    },
+  })
+})
+
+app.get('/api/me', async (req, res) => {
+  const plan = getActivePlanConfig()
+  const activeShop = await getActiveInstalledShop(req)
+  const db = await getDb()
+  const settings = await db.get('SELECT * FROM app_settings WHERE id = 1')
+
+  const fallbackShopDomain = String(settings?.shopify_domain || '').toLowerCase().trim()
+  const normalizedFallbackShop = validateShopDomain(fallbackShopDomain) ? fallbackShopDomain : ''
+  const resolvedShopDomain = activeShop?.shop_domain || normalizedFallbackShop
+  const resolvedShop =
+    activeShop ||
+    (validateShopDomain(resolvedShopDomain) ? await getShopByDomain(resolvedShopDomain) : null)
+
+  const quickbooksConnected = Boolean(
+    (resolvedShop?.qbo_refresh_token || resolvedShop?.qbo_access_token) && resolvedShop?.qbo_realm_id,
+  )
+
+  return res.json({
+    shop: resolvedShopDomain || null,
+    plan: plan.key,
+    integrations: {
+      shopify: Boolean(resolvedShopDomain),
+      quickbooks: quickbooksConnected,
     },
   })
 })
