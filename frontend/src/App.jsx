@@ -167,6 +167,18 @@ async function getCurrentShopDomainWithTokenFallback() {
   return '';
 }
 
+// Always returns an absolute URL pointing at the Vercel backend, even when
+// the page is loaded inside the Shopify admin iframe (where window.location
+// would otherwise resolve relative paths against admin.shopify.com).
+function buildBackendUrl(path, params = {}) {
+  const base = 'https://order2-books.vercel.app';
+  const url = new URL(path, base);
+  Object.entries(params).forEach(([k, v]) => {
+    if (v) url.searchParams.set(k, v);
+  });
+  return url.toString();
+}
+
 function redirectToTop(url) {
   let targetUrl = String(url || '');
 
@@ -1018,21 +1030,21 @@ function App() {
     if (!confirmed) return;
 
     setQboDisconnectBusy(true);
-    
-    // Safety timeout: auto-clear busy flag after 15 seconds if something goes wrong
-    const safetyTimeout = window.setTimeout(() => {
-      console.warn('Disconnect safety timeout triggered');
-      setQboDisconnectBusy(false);
-    }, 15000);
-    
+
     try {
+      // Use raw fetch with a hardcoded backend URL so this never hangs waiting
+      // for Shopify App Bridge (which can block indefinitely inside the iframe).
+      const shop = getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
+      const url = buildBackendUrl('/api/auth/qbo/disconnect', shop ? { shop } : {});
+
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 10000);
-      const response = await apiFetch('/api/auth/qbo/disconnect', {
-        method: 'POST',
-        signal: controller.signal,
-      });
-      window.clearTimeout(timeoutId);
+      let response;
+      try {
+        response = await fetch(url, { method: 'POST', credentials: 'include' });
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -1073,7 +1085,6 @@ function App() {
       }
       return false;
     } finally {
-      window.clearTimeout(safetyTimeout);
       setQboDisconnectBusy(false);
     }
   };
