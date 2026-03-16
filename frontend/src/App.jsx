@@ -768,11 +768,7 @@ function App() {
         nextSettings.shopifyDomain = apiShop;
       }
 
-      const resolvedQboConnected = manuallyDisconnectedQbo
-        ? Boolean(apiQboConnected)
-        : hasAuthoritativeConnectionState
-          ? Boolean(apiQboConnected)
-          : Boolean(apiQboConnected || previousQboConnected || cachedQboConnected);
+      const resolvedQboConnected = Boolean(apiQboConnected);
 
       const resolvedShopifyConnected = resolvedQboConnected
         ? true
@@ -809,8 +805,8 @@ function App() {
           ...previous,
           ...cached,
           shopifyDomain: previous.shopifyDomain || cached.shopifyDomain,
-          shopifyConnected: Boolean(previous.shopifyConnected || cached.shopifyConnected),
-          qboConnected: Boolean(previous.qboConnected || cached.qboConnected),
+          shopifyConnected: Boolean(previous.shopifyConnected || cached.shopifyConnected || previous.qboConnected),
+          qboConnected: Boolean(previous.qboConnected),
         }));
       }
     } finally {
