@@ -318,6 +318,31 @@ function getStatusBadgeClass(status) {
   return 'status-retrying';
 }
 
+function mappingHintFromEmptyReason(emptyReason) {
+  if (emptyReason === 'missing_shopify_token') {
+    return 'Connection issue: Shopify access token is missing for this shop.';
+  }
+  if (emptyReason === 'missing_qbo_realm') {
+    return 'Connection issue: QuickBooks company (realm) is missing. Reconnect QuickBooks.';
+  }
+  if (emptyReason === 'missing_qbo_token') {
+    return 'Connection issue: QuickBooks token is missing or expired. Reconnect QuickBooks.';
+  }
+  if (emptyReason === 'missing_shop_context') {
+    return 'Connection issue: Shop context missing. Re-open the embedded app from Shopify admin.';
+  }
+  if (emptyReason === 'scan_in_progress') {
+    return 'Product scan is still running in background. Mappings should appear shortly.';
+  }
+  if (emptyReason === 'scan_started') {
+    return 'Product scan started in background. Mappings should appear shortly.';
+  }
+  if (emptyReason === 'no_products_found') {
+    return 'No Shopify products found to map yet.';
+  }
+  return 'No product mappings yet. Run Scan and refresh in a few seconds.';
+}
+
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('general');
@@ -391,7 +416,7 @@ function App() {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       controller.abort();
-    }, 15000);
+    }, 10000);
 
     try {
       const response = await apiFetch('/api/mappings', { signal: controller.signal });
@@ -413,23 +438,7 @@ function App() {
       const hasNoMappings = autoMapped.length === 0 && needsAttention.length === 0;
 
       if (hasNoMappings && debug?.emptyReason) {
-        if (debug.emptyReason === 'missing_shopify_token') {
-          setMappingStatusHint('Temporary debug: Shopify access token is missing for this shop.');
-        } else if (debug.emptyReason === 'missing_qbo_realm') {
-          setMappingStatusHint('Temporary debug: QuickBooks company (realm) is missing. Reconnect QuickBooks.');
-        } else if (debug.emptyReason === 'missing_qbo_token') {
-          setMappingStatusHint('Temporary debug: QuickBooks token is missing or expired. Reconnect QuickBooks.');
-        } else if (debug.emptyReason === 'missing_shop_context') {
-          setMappingStatusHint('Temporary debug: Shop context missing. Re-open the embedded app from Shopify admin.');
-        } else if (debug.emptyReason === 'scan_in_progress') {
-          setMappingStatusHint('Product scan is still running in background. Mappings should appear shortly.');
-        } else if (debug.emptyReason === 'scan_started') {
-          setMappingStatusHint('Product scan started in background. Mappings should appear shortly.');
-        } else if (debug.emptyReason === 'no_products_found') {
-          setMappingStatusHint('No Shopify products found to map yet.');
-        } else {
-          setMappingStatusHint('No product mappings yet. Run Scan and refresh in a few seconds.');
-        }
+        setMappingStatusHint(mappingHintFromEmptyReason(debug.emptyReason));
 
         if (debug.lastScanStatus && debug.lastScanMessage) {
           setMappingStatusHint((previous) => {
@@ -449,7 +458,25 @@ function App() {
     } catch (error) {
       setMappings({ autoMapped: [], needsAttention: [] });
       if (error?.name === 'AbortError') {
-        setMappingStatusHint('Loading mappings timed out. Try Refresh or Run Scan.');
+        try {
+          const diagnosticsController = new AbortController();
+          const diagnosticsTimeoutId = window.setTimeout(() => diagnosticsController.abort(), 4000);
+          const diagnosticsResponse = await apiFetch('/api/mappings?diagnostics=1', {
+            signal: diagnosticsController.signal,
+          });
+          window.clearTimeout(diagnosticsTimeoutId);
+
+          if (diagnosticsResponse.ok) {
+            const diagnosticsData = await diagnosticsResponse.json();
+            const reason = String(diagnosticsData?.debug?.emptyReason || '').trim();
+            const reasonHint = mappingHintFromEmptyReason(reason);
+            setMappingStatusHint(`Timed out after 10s. ${reasonHint}`);
+          } else {
+            setMappingStatusHint('Timed out after 10s. Connection issue while loading mappings.');
+          }
+        } catch {
+          setMappingStatusHint('Timed out after 10s. Could not determine connection reason.');
+        }
       } else {
         setMappingStatusHint('Failed to load mappings. Try Refresh or Run Scan.');
       }

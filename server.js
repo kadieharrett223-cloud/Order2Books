@@ -2154,6 +2154,7 @@ app.get('/api/logs', async (req, res) => {
 })
 
 app.get('/api/mappings', async (req, res) => {
+  const diagnosticsOnly = String(req.query?.diagnostics || '').trim() === '1'
   const activeShop = await getActiveInstalledShop(req)
   if (!activeShop) {
     return res.json({
@@ -2176,16 +2177,20 @@ app.get('/api/mappings', async (req, res) => {
   }
 
   const db = await getDb()
-  const mappings = await db.all(
-    `SELECT *
+  const mappings = diagnosticsOnly
+    ? []
+    : await db.all(
+      `SELECT *
      FROM product_mappings
      WHERE shop_id = ?
      ORDER BY datetime(updated_at) DESC
      LIMIT 500`,
-    [activeShop.id],
-  )
+      [activeShop.id],
+    )
 
-  const scanTriggered = mappings.length === 0 ? triggerMappingScan(activeShop) : false
+  const scanTriggered = diagnosticsOnly
+    ? false
+    : (mappings.length === 0 ? triggerMappingScan(activeShop) : false)
   const scanInProgress = Boolean(mappingScanInProgressByShopId.get(activeShop.id))
   const hasShopifyToken = Boolean(activeShop.shopify_access_token)
   const hasQboRealm = Boolean(activeShop.qbo_realm_id)
