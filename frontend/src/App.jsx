@@ -1050,10 +1050,15 @@ function App() {
         window.clearTimeout(timeoutId);
       }
       const data = await response.json().catch(() => ({}));
+      const disconnectedShopDomain = String(data?.shopDomain || shop || '').trim().toLowerCase();
 
       if (!response.ok) {
         alert(data.error || 'Failed to disconnect QuickBooks.');
         return false;
+      }
+
+      if (disconnectedShopDomain && disconnectedShopDomain.endsWith('.myshopify.com')) {
+        persistShopDomain(disconnectedShopDomain);
       }
 
       setSettings((previous) => {
@@ -1074,7 +1079,7 @@ function App() {
       setMappingStatusHint('QuickBooks disconnected. You can now connect a different Intuit account.');
 
       window.setTimeout(() => {
-        const shopForRefresh = getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
+        const shopForRefresh = disconnectedShopDomain || getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
         const refreshParams = new URLSearchParams({
           qbo_disconnected: '1',
           t: String(Date.now()),
