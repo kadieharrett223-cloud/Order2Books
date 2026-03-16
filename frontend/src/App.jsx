@@ -411,7 +411,7 @@ function App() {
 
   const loadMappings = async () => {
     setMappingsLoading(true);
-    setMappingStatusHint('');
+    setMappingStatusHint('Loading product mappings...');
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
@@ -914,6 +914,7 @@ function App() {
     return status && status !== 'synced' && status !== 'success';
   }).length;
   const effectiveMappings = mappings;
+  const displayedMappingStatusHint = mappingStatusHint || (mappingsLoading ? 'Loading product mappings...' : '');
   const disconnectedCount = effectiveSettings.qboConnected ? 0 : 1;
   const lastSync = visibleSyncs[0]?.syncedAt || null;
   const recentSyncCount = visibleSyncs.filter((sync) => {
@@ -1554,7 +1555,7 @@ function App() {
                     {scanBusy ? 'Scanning...' : 'Run Scan'}
                   </button>
                 </div>
-                {mappingStatusHint ? <p className="form-hint" style={{ marginBottom: '10px' }}>{mappingStatusHint}</p> : null}
+                {displayedMappingStatusHint ? <p className="form-hint" style={{ marginBottom: '10px' }}>{displayedMappingStatusHint}</p> : null}
                 <div className="table-container">
                   <table className="sync-table">
                     <thead>
