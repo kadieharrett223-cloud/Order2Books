@@ -458,8 +458,9 @@ function App() {
     try {
       const params = new URLSearchParams(window.location.search);
       const shop = String(params.get('shop') || '').trim().toLowerCase();
+      const validShop = Boolean(shop && shop.endsWith('.myshopify.com'));
       const installed = params.has('shopify_connected');
-      if (installed && shop && shop.endsWith('.myshopify.com')) {
+      if (installed && validShop) {
         persistShopDomain(shop);
         setSettings((previous) => ({
           ...previous,
@@ -469,8 +470,13 @@ function App() {
       }
 
       if (params.has('qbo_connected')) {
+        if (validShop) {
+          persistShopDomain(shop);
+        }
         setSettings((previous) => ({
           ...previous,
+          shopifyDomain: validShop ? (previous.shopifyDomain || shop) : previous.shopifyDomain,
+          shopifyConnected: true,
           qboConnected: true,
         }));
       }
@@ -595,10 +601,15 @@ function App() {
       const data = await response.json();
       const fallbackShop = await getCurrentShopDomainWithTokenFallback();
       const cached = readConnectionStateSnapshot();
+      const hasAuthoritativeConnectionState = Boolean(data.connection_state_authoritative);
       const apiSettings = data.settings || {};
       const apiShop = String(data.shop || apiSettings.shopifyDomain || '').trim().toLowerCase();
       const apiShopifyConnected = Boolean(data.shopify_connected || apiSettings.shopifyConnected);
       const apiQboConnected = Boolean(data.quickbooks_connected || apiSettings.qboConnected);
+      const previousShopifyConnected = Boolean(settings?.shopifyConnected);
+      const previousQboConnected = Boolean(settings?.qboConnected);
+      const cachedShopifyConnected = Boolean(cached?.shopifyConnected);
+      const cachedQboConnected = Boolean(cached?.qboConnected);
       const nextSettings = {
         ...DEFAULT_SETTINGS,
         ...(cached || {}),
@@ -609,19 +620,18 @@ function App() {
         nextSettings.shopifyDomain = apiShop;
       }
 
-      // Connection flags: use OR merge so once connected, stay connected
-      // This prevents mutual exclusion when one OAuth completes
-      nextSettings.shopifyConnected = Boolean(
-        cached?.shopifyConnected ||
-        nextSettings.shopifyConnected ||
-        apiShopifyConnected ||
-        (nextSettings.shopifyDomain && nextSettings.shopifyDomain.endsWith('.myshopify.com')),
-      );
-      nextSettings.qboConnected = Boolean(
-        cached?.qboConnected ||
-        nextSettings.qboConnected ||
-        apiQboConnected,
-      );
+      const resolvedQboConnected = hasAuthoritativeConnectionState
+        ? Boolean(apiQboConnected)
+        : Boolean(apiQboConnected || previousQboConnected || cachedQboConnected);
+
+      const resolvedShopifyConnected = resolvedQboConnected
+        ? true
+        : hasAuthoritativeConnectionState
+          ? Boolean(apiShopifyConnected)
+          : Boolean(apiShopifyConnected || previousShopifyConnected || cachedShopifyConnected);
+
+      nextSettings.qboConnected = resolvedQboConnected;
+      nextSettings.shopifyConnected = resolvedShopifyConnected;
 
       if (!nextSettings.shopifyDomain && fallbackShop) {
         nextSettings.shopifyDomain = fallbackShop;

@@ -2240,18 +2240,20 @@ app.get('/api/settings', async (req, res) => {
   const resolvedShop =
     activeShop ||
     (validateShopDomain(resolvedShopDomain) ? await getShopByDomain(resolvedShopDomain) : null)
+  const connectionStateAuthoritative = Boolean(resolvedShop)
   const hasQboConnection = Boolean(
     (resolvedShop?.qbo_refresh_token || resolvedShop?.qbo_access_token) && resolvedShop?.qbo_realm_id,
   )
 
   return res.json({
+    connection_state_authoritative: connectionStateAuthoritative,
     shop: resolvedShopDomain || null,
-    shopify_connected: Boolean(resolvedShopDomain),
+    shopify_connected: connectionStateAuthoritative,
     quickbooks_connected: hasQboConnection,
     settings: {
       shopifyDomain: resolvedShopDomain,
       shopifyApiKey: resolvedShop?.shopify_access_token || settings?.shopify_api_key ? '***' : '',
-      shopifyConnected: Boolean(resolvedShopDomain),
+      shopifyConnected: connectionStateAuthoritative,
       qboConnected: hasQboConnection,
       qboCompanyName: resolvedShop?.qbo_realm_id ? `QuickBooks realm ${resolvedShop.qbo_realm_id}` : '',
       autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
