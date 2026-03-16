@@ -590,7 +590,7 @@ async function countMonthlyOrderSyncs() {
   return Number(row?.count || 0)
 }
 
-async function updateQboTokensForShop({ shopId, realmId, accessToken, refreshToken, expiresAt }) {
+async function updateQboTokensForShop({ shopId, realmId, accessToken, refreshToken, expiresAt, syncCutoffAt = null }) {
   const db = await getDb()
   await db.run(
     `UPDATE shops
@@ -598,9 +598,10 @@ async function updateQboTokensForShop({ shopId, realmId, accessToken, refreshTok
          qbo_access_token = ?,
          qbo_refresh_token = ?,
          qbo_token_expires_at = ?,
+         qbo_sync_cutoff_at = COALESCE(?, qbo_sync_cutoff_at),
          updated_at = ?
      WHERE id = ?`,
-    [realmId, accessToken, refreshToken, expiresAt, nowIso(), shopId],
+    [realmId, accessToken, refreshToken, expiresAt, syncCutoffAt, nowIso(), shopId],
   )
 }
 
@@ -612,10 +613,31 @@ async function clearQboTokensForShop(shopId) {
          qbo_access_token = NULL,
          qbo_refresh_token = NULL,
          qbo_token_expires_at = NULL,
+         qbo_sync_cutoff_at = NULL,
          updated_at = ?
      WHERE id = ?`,
     [nowIso(), shopId],
   )
+}
+
+function getOrderEligibleTimestamp(order) {
+  return String(order?.createdAt || order?.paidAt || '').trim()
+}
+
+function isOrderEligibleForQboSync(shop, order) {
+  const cutoffRaw = String(shop?.qbo_sync_cutoff_at || '').trim()
+  if (!cutoffRaw) {
+    return true
+  }
+
+  const cutoffMs = new Date(cutoffRaw).getTime()
+  const orderMs = new Date(getOrderEligibleTimestamp(order)).getTime()
+
+  if (Number.isNaN(cutoffMs) || Number.isNaN(orderMs)) {
+    return true
+  }
+
+  return orderMs >= cutoffMs
 }
 
 async function markShopUninstalled(shopDomain) {
@@ -1521,6 +1543,7 @@ async function fetchShopifyOrderDetails(shop, webhookPayload) {
       orderId: String(webhookPayload.orderId),
       orderName: webhookPayload.orderName || `#${webhookPayload.orderId}`,
       financialStatus: String(webhookPayload.financialStatus || 'paid').toLowerCase(),
+      createdAt: webhookPayload.createdAt || webhookPayload.created_at || webhookPayload.paidAt || nowIso(),
       paidAt: webhookPayload.paidAt || nowIso(),
       customerEmail: webhookPayload.customerEmail || null,
       customerName: webhookPayload.customerName || null,
@@ -1559,6 +1582,7 @@ async function fetchShopifyOrderDetails(shop, webhookPayload) {
     orderId: String(order.id),
     orderName: order.name,
     financialStatus: String(order.financial_status || '').toLowerCase(),
+    createdAt: order.created_at || order.processed_at || order.updated_at || nowIso(),
     paidAt: order.processed_at || order.updated_at || nowIso(),
     customerEmail: order.email || order.customer?.email || null,
     customerName: [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(' ') || null,
@@ -1990,6 +2014,7 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
       accessToken: token.access_token,
       refreshToken: token.refresh_token,
       expiresAt,
+      syncCutoffAt: nowIso(),
     })
 
     await writeSyncLog({
@@ -2112,6 +2137,12 @@ app.post('/api/syncs/:shopifyOrderId/retry', async (req, res) => {
       id: sync.shopify_order_id,
       orderName: sync.shopify_order_name,
     })
+
+    if (!isOrderEligibleForQboSync(shop, order)) {
+      return res.status(409).json({
+        error: 'This order was created before QuickBooks was connected. Only brand-new Shopify orders can be synced.',
+      })
+    }
 
     // Try to sync to QB
     const customer = await qboFindOrCreateCustomer(shop, order)
@@ -2581,6 +2612,23 @@ app.post('/api/webhooks/shopify/orders-paid', async (req, res) => {
     const order = await fetchShopifyOrderDetails(shop, req.body || {})
     orderId = String(order.orderId)
     const captureMode = await getCaptureMode()
+
+    if (!isOrderEligibleForQboSync(shop, order)) {
+      await writeSyncLog({
+        shopId: shop.id,
+        shopifyOrderId: orderId,
+        eventType: 'orders/paid',
+        status: 'skipped_pre_qbo_connection',
+        message: 'Order was created before QuickBooks was connected. Only brand-new orders sync to QuickBooks.',
+        payload: req.body,
+      })
+
+      return res.status(202).json({
+        success: true,
+        skipped: true,
+        message: 'Order skipped because it was created before QuickBooks was connected.',
+      })
+    }
 
     const existing = await getOrderSyncByUniqueKey(shop.id, orderId)
     if (existing) {

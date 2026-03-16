@@ -128,6 +128,7 @@ async function migrateSqlite() {
   const migrationPath = path.join(__dirname, 'migrations', '001_init.sql')
   const sql = await fs.readFile(migrationPath, 'utf8')
   await db.exec(sql)
+  await ensureColumnExists(db, 'shops', 'qbo_sync_cutoff_at', 'TEXT')
   await ensureColumnExists(db, 'app_settings', 'auto_create_qbo_items', 'INTEGER NOT NULL DEFAULT 1')
   await ensureColumnExists(db, 'app_settings', 'capture_mode', "TEXT NOT NULL DEFAULT 'auto'")
   await ensureTableExists(
@@ -166,6 +167,7 @@ async function migratePostgres() {
       qbo_access_token TEXT,
       qbo_refresh_token TEXT,
       qbo_token_expires_at TEXT,
+      qbo_sync_cutoff_at TEXT,
       is_installed INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -233,6 +235,7 @@ async function migratePostgres() {
     CREATE INDEX IF NOT EXISTS idx_product_mappings_shop_id ON product_mappings(shop_id);
     CREATE INDEX IF NOT EXISTS idx_product_mappings_status ON product_mappings(status);
   `)
+  await ensureColumnExists(db, 'shops', 'qbo_sync_cutoff_at', 'TEXT')
 }
 
 async function migrate() {
