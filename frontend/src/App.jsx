@@ -412,6 +412,9 @@ function App() {
       seeded.shopifyDomain = storedShop;
     }
 
+    seeded.qboConnected = false;
+    seeded.qboCompanyName = '';
+
     if (manuallyDisconnectedQbo) {
       seeded.qboConnected = false;
       seeded.qboCompanyName = '';
@@ -806,7 +809,14 @@ function App() {
           ...cached,
           shopifyDomain: previous.shopifyDomain || cached.shopifyDomain,
           shopifyConnected: Boolean(previous.shopifyConnected || cached.shopifyConnected || previous.qboConnected),
-          qboConnected: Boolean(previous.qboConnected),
+          qboConnected: false,
+          qboCompanyName: '',
+        }));
+      } else {
+        setSettings((previous) => ({
+          ...previous,
+          qboConnected: false,
+          qboCompanyName: '',
         }));
       }
     } finally {
