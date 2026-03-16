@@ -336,7 +336,24 @@ function App() {
   const [scanBusy, setScanBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(() => {
+    const cached = readConnectionStateSnapshot();
+    const storedShop = readStoredShopDomain();
+    const seeded = {
+      ...DEFAULT_SETTINGS,
+      ...(cached || {}),
+    };
+
+    if (!seeded.shopifyDomain && storedShop) {
+      seeded.shopifyDomain = storedShop;
+    }
+
+    if (seeded.qboConnected) {
+      seeded.shopifyConnected = true;
+    }
+
+    return seeded;
+  });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [planData, setPlanData] = useState(DEFAULT_PLAN_DATA);
   const [tutorialStep, setTutorialStep] = useState(0);
