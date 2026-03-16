@@ -600,6 +600,15 @@ function App() {
         ...(data.settings || {}),
       };
 
+      // Connection flags: use OR merge so once connected, stay connected
+      // This prevents mutual exclusion when one OAuth completes
+      if (cached?.shopifyConnected || nextSettings.shopifyConnected) {
+        nextSettings.shopifyConnected = true;
+      }
+      if (cached?.qboConnected || nextSettings.qboConnected) {
+        nextSettings.qboConnected = true;
+      }
+
       if (!nextSettings.shopifyDomain && fallbackShop) {
         nextSettings.shopifyDomain = fallbackShop;
       }
