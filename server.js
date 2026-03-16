@@ -2580,6 +2580,24 @@ app.post('/api/debug/qbo-force-clear', async (req, res) => {
   }
 })
 
+// DEBUG: Check environment variables
+app.get('/api/debug/env-config', async (req, res) => {
+  return res.json({
+    environment: process.env.NODE_ENV,
+    qbo_client_id_set: Boolean(QBO_CLIENT_ID),
+    qbo_client_secret_set: Boolean(QBO_CLIENT_SECRET),
+    qbo_redirect_uri_set: Boolean(QBO_REDIRECT_URI),
+    qbo_redirect_uri: QBO_REDIRECT_URI,
+    qbo_environment: QBO_ENV,
+    shopify_api_key_set: Boolean(SHOPIFY_API_KEY),
+    shopify_api_secret_set: Boolean(SHOPIFY_API_SECRET),
+    shopify_redirect_uri: buildAppUrlFromRequest(req, '/api/auth/shopify/callback'),
+    postgres_url_set: Boolean(process.env.POSTGRES_URL),
+    database_driver: process.env.POSTGRES_URL ? 'postgres' : 'sqlite',
+    app_url: APP_URL,
+  })
+})
+
 app.post('/api/settings', async (req, res) => {
   const activeShop = await getActiveInstalledShop(req)
   if (!activeShop) {
