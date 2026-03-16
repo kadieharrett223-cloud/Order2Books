@@ -1074,23 +1074,6 @@ function App() {
     }
   };
 
-  const handleQboSwitchAccountClick = async () => {
-    if (qboDisconnectBusy) return;
-    
-    try {
-      const disconnected = await handleQboDisconnectClick();
-      if (disconnected) {
-        // Disconnect was successful, now connect to new account
-        await handleQboConnectClick();
-      }
-    } catch (error) {
-      console.error('Switch account error:', error);
-      // Make sure busy flag is cleared even on error
-      setQboDisconnectBusy(false);
-      alert('Failed to switch accounts. Please try again.');
-    }
-  };
-
   return (
     <div className="app">
       {/* Top Header */}
@@ -1570,24 +1553,14 @@ function App() {
                           </button>
                         )}
                         {effectiveSettings.qboConnected ? (
-                          <>
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={handleQboDisconnectClick}
-                              disabled={qboDisconnectBusy}
-                            >
-                              {qboDisconnectBusy ? 'Disconnecting...' : 'Disconnect QuickBooks'}
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-oauth"
-                              onClick={handleQboSwitchAccountClick}
-                              disabled={qboDisconnectBusy}
-                            >
-                              Switch Intuit Account
-                            </button>
-                          </>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={handleQboDisconnectClick}
+                            disabled={qboDisconnectBusy}
+                          >
+                            {qboDisconnectBusy ? 'Disconnecting...' : 'Disconnect QuickBooks'}
+                          </button>
                         ) : null}
                       </div>
                       {effectiveSettings.qboConnected ? (
