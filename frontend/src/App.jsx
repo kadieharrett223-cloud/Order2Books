@@ -407,6 +407,31 @@ function App() {
         needsAttention: Array.isArray(data.needsAttention) ? data.needsAttention : [],
       });
 
+      const debug = data?.debug || {};
+      const hasNoMappings =
+        (Array.isArray(data.autoMapped) ? data.autoMapped.length : 0) === 0
+        && (Array.isArray(data.needsAttention) ? data.needsAttention.length : 0) === 0;
+
+      if (hasNoMappings && debug?.emptyReason) {
+        if (debug.emptyReason === 'missing_shopify_token') {
+          setMappingStatusHint('Temporary debug: Shopify access token is missing for this shop.');
+        } else if (debug.emptyReason === 'missing_qbo_realm') {
+          setMappingStatusHint('Temporary debug: QuickBooks company (realm) is missing. Reconnect QuickBooks.');
+        } else if (debug.emptyReason === 'missing_qbo_token') {
+          setMappingStatusHint('Temporary debug: QuickBooks token is missing or expired. Reconnect QuickBooks.');
+        } else if (debug.emptyReason === 'scan_in_progress') {
+          setMappingStatusHint('Product scan is still running in background. Mappings should appear shortly.');
+        } else if (debug.emptyReason === 'scan_started') {
+          setMappingStatusHint('Product scan started in background. Mappings should appear shortly.');
+        } else if (debug.emptyReason === 'no_products_found') {
+          setMappingStatusHint('No Shopify products found to map yet.');
+        }
+
+        if (debug.lastScanStatus && debug.lastScanMessage) {
+          setMappingStatusHint((previous) => `${previous} Last scan: ${debug.lastScanStatus} — ${debug.lastScanMessage}`);
+        }
+      }
+
       if (data.scanTriggered) {
         setMappingStatusHint('Product scan started in background. Mappings should appear shortly.');
       } else if (data.scanInProgress) {
@@ -1508,7 +1533,13 @@ function App() {
                     <tbody>
                       {effectiveMappings.autoMapped.length === 0 ? (
                         <tr>
-                          <td colSpan="5">{mappingsLoading ? 'Loading mapped items...' : 'No mapped items yet.'}</td>
+                          <td colSpan="5">
+                            {mappingsLoading
+                              ? 'Loading mapped items...'
+                              : (effectiveMappings.needsAttention.length === 0
+                                ? 'No products found from Shopify yet.'
+                                : 'No mapped items yet.')}
+                          </td>
                         </tr>
                       ) : effectiveMappings.autoMapped.map((mapping) => (
                         <tr key={mapping.id}>
@@ -1539,7 +1570,13 @@ function App() {
                     <tbody>
                       {effectiveMappings.needsAttention.length === 0 ? (
                         <tr>
-                          <td colSpan="4">{mappingsLoading ? 'Loading items...' : 'No items need attention.'}</td>
+                          <td colSpan="4">
+                            {mappingsLoading
+                              ? 'Loading items...'
+                              : (effectiveMappings.autoMapped.length === 0
+                                ? 'No products found from Shopify yet.'
+                                : 'No items need attention.')}
+                          </td>
                         </tr>
                       ) : effectiveMappings.needsAttention.map((mapping) => (
                         <tr key={mapping.id}>

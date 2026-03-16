@@ -1355,6 +1355,14 @@ function triggerMappingScan(shop, { force = false } = {}) {
     .then(() => runMappingScanForShop(shop))
     .catch((error) => {
       console.error('Mapping scan failed:', error)
+      writeSyncLog({
+        shopId: shop.id,
+        eventType: 'mapping/scan',
+        status: 'failed',
+        message: `Mapping scan failed: ${error?.message || String(error)}`,
+        payload: { error: error?.message || String(error) },
+      }).catch(() => {
+      })
     })
     .finally(() => {
       mappingScanInProgressByShopId.set(shop.id, false)
@@ -2163,6 +2171,36 @@ app.get('/api/mappings', async (req, res) => {
 
   const scanTriggered = mappings.length === 0 ? triggerMappingScan(activeShop) : false
   const scanInProgress = Boolean(mappingScanInProgressByShopId.get(activeShop.id))
+  const hasShopifyToken = Boolean(activeShop.shopify_access_token)
+  const hasQboRealm = Boolean(activeShop.qbo_realm_id)
+  const hasQboToken = Boolean(activeShop.qbo_access_token || activeShop.qbo_refresh_token)
+  const eligibleForScan = Boolean(hasShopifyToken && hasQboRealm && hasQboToken)
+
+  const lastScanLog = await db.get(
+    `SELECT status, message, created_at
+     FROM sync_logs
+     WHERE shop_id = ? AND event_type = 'mapping/scan'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [activeShop.id],
+  )
+
+  let emptyReason = ''
+  if (mappings.length === 0) {
+    if (!hasShopifyToken) {
+      emptyReason = 'missing_shopify_token'
+    } else if (!hasQboRealm) {
+      emptyReason = 'missing_qbo_realm'
+    } else if (!hasQboToken) {
+      emptyReason = 'missing_qbo_token'
+    } else if (scanInProgress) {
+      emptyReason = 'scan_in_progress'
+    } else if (scanTriggered) {
+      emptyReason = 'scan_started'
+    } else {
+      emptyReason = 'no_products_found'
+    }
+  }
 
   const formatted = mappings.map((mapping) => ({
     id: mapping.id,
@@ -2180,6 +2218,17 @@ app.get('/api/mappings', async (req, res) => {
     needsAttention: formatted.filter((mapping) => mapping.status !== 'mapped'),
     scanTriggered,
     scanInProgress,
+    debug: {
+      eligibleForScan,
+      hasShopifyToken,
+      hasQboRealm,
+      hasQboToken,
+      emptyReason,
+      mappingCount: mappings.length,
+      lastScanStatus: String(lastScanLog?.status || ''),
+      lastScanMessage: String(lastScanLog?.message || ''),
+      lastScanAt: lastScanLog?.created_at || null,
+    },
   })
 })
 
