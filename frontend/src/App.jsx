@@ -1041,7 +1041,11 @@ function App() {
       const timeoutId = window.setTimeout(() => controller.abort(), 10000);
       let response;
       try {
-        response = await fetch(url, { method: 'POST', credentials: 'include' });
+        response = await fetch(url, {
+          method: 'POST',
+          credentials: 'include',
+          signal: controller.signal,
+        });
       } finally {
         window.clearTimeout(timeoutId);
       }

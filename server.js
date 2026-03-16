@@ -653,21 +653,66 @@ async function getActiveInstalledShop(req) {
   const requestedShopDomain = resolveShopDomainFromRequest(req)
 
   if (!requestedShopDomain) {
-    const installedShops = await db.all(
-      `SELECT * FROM shops WHERE is_installed = 1 ORDER BY updated_at DESC LIMIT 2`,
-    )
+    const settings = await db.get('SELECT * FROM app_settings WHERE id = 1')
+    const fallbackShopDomain = String(settings?.shopify_domain || '').toLowerCase().trim()
 
-    if (installedShops.length === 1) {
-      return installedShops[0]
+    if (validateShopDomain(fallbackShopDomain)) {
+      const preferredShop = await db.get(
+        `SELECT *
+         FROM shops
+         WHERE shop_domain = ?
+         ORDER BY is_installed DESC, datetime(updated_at) DESC
+         LIMIT 1`,
+        [fallbackShopDomain],
+      )
+
+      if (preferredShop && (preferredShop.is_installed || preferredShop.shopify_access_token)) {
+        return preferredShop
+      }
     }
 
-    return null
+    const mostRecentInstalledShop = await db.get(
+      `SELECT *
+       FROM shops
+       WHERE is_installed = 1
+       ORDER BY datetime(updated_at) DESC
+       LIMIT 1`,
+    )
+
+    if (mostRecentInstalledShop) {
+      return mostRecentInstalledShop
+    }
+
+    const mostRecentTokenizedShop = await db.get(
+      `SELECT *
+       FROM shops
+       WHERE shopify_access_token IS NOT NULL AND shopify_access_token <> ''
+       ORDER BY datetime(updated_at) DESC
+       LIMIT 1`,
+    )
+
+    return mostRecentTokenizedShop || null
   }
 
-  return db.get(
-    `SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1`,
+  const installedRequestedShop = await db.get(
+    `SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1 ORDER BY datetime(updated_at) DESC LIMIT 1`,
     [requestedShopDomain],
   )
+
+  if (installedRequestedShop) {
+    return installedRequestedShop
+  }
+
+  const tokenizedRequestedShop = await db.get(
+    `SELECT * FROM shops WHERE shop_domain = ? ORDER BY datetime(updated_at) DESC LIMIT 1`,
+    [requestedShopDomain],
+  )
+
+  if (tokenizedRequestedShop && tokenizedRequestedShop.shopify_access_token) {
+    return tokenizedRequestedShop
+  }
+
+  return null
 }
 
 async function countMonthlyOrderSyncs() {
