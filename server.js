@@ -757,6 +757,28 @@ async function clearQboTokensForShop(shopId) {
   )
 }
 
+async function clearQboTokensForShopDomain(shopDomain) {
+  const normalizedShopDomain = String(shopDomain || '').toLowerCase().trim()
+  if (!validateShopDomain(normalizedShopDomain)) {
+    return 0
+  }
+
+  const db = await getDb()
+  const result = await db.run(
+    `UPDATE shops
+     SET qbo_realm_id = NULL,
+         qbo_access_token = NULL,
+         qbo_refresh_token = NULL,
+         qbo_token_expires_at = NULL,
+         qbo_sync_cutoff_at = NULL,
+         updated_at = ?
+     WHERE shop_domain = ?`,
+    [nowIso(), normalizedShopDomain],
+  )
+
+  return Number(result?.changes || 0)
+}
+
 function getOrderEligibleTimestamp(order) {
   return String(order?.createdAt || order?.paidAt || '').trim()
 }
@@ -2516,17 +2538,26 @@ app.post('/api/auth/qbo/disconnect', async (req, res) => {
     return res.status(401).json({ error: 'Shopify session required.' })
   }
 
-  await clearQboTokensForShop(activeShop.id)
+  const affectedRows = await clearQboTokensForShopDomain(activeShop.shop_domain)
 
   await writeSyncLog({
     shopId: activeShop.id,
     eventType: 'qbo/oauth',
     status: 'success',
     message: 'QuickBooks disconnected and tokens cleared',
-    payload: { disconnected: true },
+    payload: {
+      disconnected: true,
+      shopDomain: activeShop.shop_domain,
+      affectedRows,
+    },
   })
 
-  return res.json({ success: true, message: 'QuickBooks disconnected.' })
+  return res.json({
+    success: true,
+    message: 'QuickBooks disconnected.',
+    shopDomain: activeShop.shop_domain,
+    affectedRows,
+  })
 })
 
 app.post('/api/mappings/:mappingId', async (req, res) => {
@@ -2611,11 +2642,25 @@ app.get('/api/settings', async (req, res) => {
   // Try to find shop: first with is_installed=1, then without (fallback for more resilience)
   let resolvedShop = activeShop
   if (!resolvedShop && validateShopDomain(resolvedShopDomain)) {
-    resolvedShop = await db.get(`SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1`, [resolvedShopDomain])
+    resolvedShop = await db.get(
+      `SELECT *
+       FROM shops
+       WHERE shop_domain = ? AND is_installed = 1
+       ORDER BY datetime(updated_at) DESC
+       LIMIT 1`,
+      [resolvedShopDomain],
+    )
   }
   if (!resolvedShop && validateShopDomain(resolvedShopDomain)) {
     // Fallback: treat any shop record as installed if it has shopify_access_token
-    resolvedShop = await db.get(`SELECT * FROM shops WHERE shop_domain = ?`, [resolvedShopDomain])
+    resolvedShop = await db.get(
+      `SELECT *
+       FROM shops
+       WHERE shop_domain = ?
+       ORDER BY datetime(updated_at) DESC
+       LIMIT 1`,
+      [resolvedShopDomain],
+    )
     if (resolvedShop && !resolvedShop.shopify_access_token) {
       resolvedShop = null
     }
