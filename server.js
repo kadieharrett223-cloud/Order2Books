@@ -2533,29 +2533,56 @@ app.post('/api/mappings/scan', async (req, res) => {
 })
 
 app.post('/api/auth/qbo/disconnect', async (req, res) => {
+  const db = await getDb()
+  const requestedShopDomain = resolveShopDomainFromRequest(req)
   const activeShop = await getActiveInstalledShop(req)
-  if (!activeShop) {
-    return res.status(401).json({ error: 'Shopify session required.' })
+  const appSettings = await db.get('SELECT * FROM app_settings WHERE id = 1')
+  const fallbackShopDomain = String(appSettings?.shopify_domain || '').toLowerCase().trim()
+
+  const resolvedShopDomain = validateShopDomain(requestedShopDomain)
+    ? requestedShopDomain
+    : validateShopDomain(activeShop?.shop_domain)
+      ? String(activeShop.shop_domain).toLowerCase().trim()
+      : validateShopDomain(fallbackShopDomain)
+        ? fallbackShopDomain
+        : ''
+
+  if (!validateShopDomain(resolvedShopDomain)) {
+    return res.status(400).json({ error: 'Unable to resolve shop domain for disconnect.' })
   }
 
-  const affectedRows = await clearQboTokensForShopDomain(activeShop.shop_domain)
+  const logShop = await db.get(
+    `SELECT *
+     FROM shops
+     WHERE shop_domain = ?
+     ORDER BY datetime(updated_at) DESC
+     LIMIT 1`,
+    [resolvedShopDomain],
+  )
+
+  const affectedRows = await clearQboTokensForShopDomain(resolvedShopDomain)
 
   await writeSyncLog({
-    shopId: activeShop.id,
+    shopId: logShop?.id || null,
     eventType: 'qbo/oauth',
     status: 'success',
     message: 'QuickBooks disconnected and tokens cleared',
     payload: {
       disconnected: true,
-      shopDomain: activeShop.shop_domain,
+      shopDomain: resolvedShopDomain,
       affectedRows,
+      source: validateShopDomain(requestedShopDomain)
+        ? 'request'
+        : validateShopDomain(activeShop?.shop_domain)
+          ? 'active_shop'
+          : 'app_settings',
     },
   })
 
   return res.json({
     success: true,
     message: 'QuickBooks disconnected.',
-    shopDomain: activeShop.shop_domain,
+    shopDomain: resolvedShopDomain,
     affectedRows,
   })
 })
