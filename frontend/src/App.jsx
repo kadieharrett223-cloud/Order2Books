@@ -953,7 +953,7 @@ function App() {
 
       if (!response.ok) {
         alert(data.error || 'Failed to disconnect QuickBooks.');
-        return;
+        return false;
       }
 
       setSettings((previous) => ({
@@ -964,10 +964,20 @@ function App() {
       setMappingStatusHint('QuickBooks disconnected. You can now connect a different Intuit account.');
       await loadSettings();
       await loadMappings();
+      return true;
     } catch {
       alert('Failed to disconnect QuickBooks.');
+      return false;
     } finally {
       setQboDisconnectBusy(false);
+    }
+  };
+
+  const handleQboSwitchAccountClick = async () => {
+    if (qboDisconnectBusy) return;
+    const disconnected = await handleQboDisconnectClick();
+    if (disconnected) {
+      await handleQboConnectClick();
     }
   };
 
@@ -1426,22 +1436,44 @@ function App() {
                     <div className="settings-form">
                       <p className="form-hint">Connect your QuickBooks Online account to sync invoices.</p>
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        <button
-                          className="btn-oauth"
-                          onClick={handleQboConnectClick}
-                        >
-                          {effectiveSettings.qboConnected
-                            ? '✓ Connected to QuickBooks'
-                            : '🔗 Connect QuickBooks Online'}
-                        </button>
                         {effectiveSettings.qboConnected ? (
+                          <div className="connected-status-badge connected" style={{ minWidth: '280px' }}>
+                            <span className="connected-status-icon">✓</span>
+                            <div>
+                              <div className="connected-status-label">Connected to QuickBooks</div>
+                              <div className="connected-status-sub">
+                                {effectiveSettings.qboCompanyName || 'QuickBooks account is active for this store'}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
                           <button
-                            className="btn-secondary"
-                            onClick={handleQboDisconnectClick}
-                            disabled={qboDisconnectBusy}
+                            type="button"
+                            className="btn-oauth"
+                            onClick={handleQboConnectClick}
                           >
-                            {qboDisconnectBusy ? 'Disconnecting...' : 'Disconnect QuickBooks'}
+                            🔗 Connect QuickBooks Online
                           </button>
+                        )}
+                        {effectiveSettings.qboConnected ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={handleQboDisconnectClick}
+                              disabled={qboDisconnectBusy}
+                            >
+                              {qboDisconnectBusy ? 'Disconnecting...' : 'Disconnect QuickBooks'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-oauth"
+                              onClick={handleQboSwitchAccountClick}
+                              disabled={qboDisconnectBusy}
+                            >
+                              Switch Intuit Account
+                            </button>
+                          </>
                         ) : null}
                       </div>
                       {effectiveSettings.qboConnected ? (
