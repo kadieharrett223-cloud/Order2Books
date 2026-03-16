@@ -1074,10 +1074,15 @@ function App() {
       setMappingStatusHint('QuickBooks disconnected. You can now connect a different Intuit account.');
 
       window.setTimeout(() => {
-        loadSettings().catch(() => {
+        const shopForRefresh = getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
+        const refreshParams = new URLSearchParams({
+          qbo_disconnected: '1',
+          t: String(Date.now()),
         });
-        loadMappings().catch(() => {
-        });
+        if (shopForRefresh && shopForRefresh.endsWith('.myshopify.com')) {
+          refreshParams.set('shop', shopForRefresh);
+        }
+        redirectToTop(`/?${refreshParams.toString()}`);
       }, 0);
 
       return true;
