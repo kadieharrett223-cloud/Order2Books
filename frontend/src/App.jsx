@@ -939,9 +939,9 @@ function App() {
               <div className="account-card">
                 <div className="account-logo shopify-logo">🛍️</div>
                 <div className="account-info">
-                  <div className="account-name">{effectiveSettings.shopifyDomain || 'No Shopify store connected'}</div>
+                  <div className="account-name">{effectiveSettings.shopifyDomain || 'No Shopify store detected'}</div>
                   <div className={`account-status ${effectiveSettings.shopifyConnected ? 'connected' : 'disconnected'}`}>
-                    {effectiveSettings.shopifyConnected ? '✓ Connected' : '✕ Not connected'}
+                    {effectiveSettings.shopifyConnected ? '✓ Installed' : '✕ Not installed'}
                   </div>
                   <div className="account-meta">Connects automatically when app is installed</div>
                 </div>
@@ -1235,16 +1235,16 @@ function App() {
                   </section>
 
                   <section className="section-card">
-                    <h3 className="section-title">Shopify Connection</h3>
+                    <h3 className="section-title">Shopify Installation</h3>
                     <div className="settings-form">
                       <div className={`connected-status-badge ${settings.shopifyConnected ? 'connected' : 'not-connected'}`}>
                         <span className="connected-status-icon">{settings.shopifyConnected ? '✓' : '○'}</span>
                         <div>
-                          <div className="connected-status-label">{settings.shopifyConnected ? 'Connected to Shopify' : 'Not connected'}</div>
+                          <div className="connected-status-label">{settings.shopifyConnected ? 'Installed in Shopify' : 'Not installed'}</div>
                           <div className="connected-status-sub">
                             {effectiveSettings.shopifyConnected
                               ? `Store: ${effectiveSettings.shopifyDomain || 'your Shopify store'}`
-                              : 'Install Order2Books from the Shopify App Store to connect automatically'}
+                              : 'Install Order2Books from the Shopify App Store to enable syncing automatically'}
                           </div>
                         </div>
                       </div>
