@@ -94,6 +94,7 @@ const PLAN_CONFIG = {
 }
 
 const ALLOW_DEV_WEBHOOK_WITHOUT_HMAC = process.env.ALLOW_DEV_WEBHOOK_WITHOUT_HMAC === 'true'
+const mappingScanCooldownByShopId = new Map()
 
 const COMPLIANCE_WEBHOOKS = [
   {
@@ -2125,6 +2126,30 @@ app.get('/api/mappings', async (req, res) => {
     [activeShop.id],
   )
 
+  let scanTriggered = false
+  if (
+    mappings.length === 0 &&
+    activeShop.shopify_access_token &&
+    activeShop.qbo_realm_id &&
+    (activeShop.qbo_access_token || activeShop.qbo_refresh_token)
+  ) {
+    const cooldownMs = 2 * 60 * 1000
+    const now = Date.now()
+    const lastTriggeredAt = Number(mappingScanCooldownByShopId.get(activeShop.id) || 0)
+
+    if (!Number.isFinite(lastTriggeredAt) || now - lastTriggeredAt > cooldownMs) {
+      mappingScanCooldownByShopId.set(activeShop.id, now)
+      scanTriggered = true
+      runMappingScanForShop(activeShop)
+        .catch((error) => {
+          console.error('Auto mapping scan failed:', error)
+        })
+        .finally(() => {
+          mappingScanCooldownByShopId.set(activeShop.id, Date.now())
+        })
+    }
+  }
+
   const formatted = mappings.map((mapping) => ({
     id: mapping.id,
     shopifyTitle: mapping.shopify_title,
@@ -2139,6 +2164,7 @@ app.get('/api/mappings', async (req, res) => {
   return res.json({
     autoMapped: formatted.filter((mapping) => mapping.status === 'mapped'),
     needsAttention: formatted.filter((mapping) => mapping.status !== 'mapped'),
+    scanTriggered,
   })
 })
 
@@ -2239,8 +2265,10 @@ app.get('/api/settings', async (req, res) => {
   const resolvedShopDomain = activeShop?.shop_domain || (validateShopDomain(fallbackShopDomain) ? fallbackShopDomain : '')
   const resolvedShop =
     activeShop ||
-    (validateShopDomain(resolvedShopDomain) ? await getShopByDomain(resolvedShopDomain) : null)
-  const connectionStateAuthoritative = Boolean(resolvedShop)
+    (validateShopDomain(resolvedShopDomain)
+      ? await db.get(`SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1`, [resolvedShopDomain])
+      : null)
+  const connectionStateAuthoritative = Boolean(resolvedShop?.is_installed)
   const hasQboConnection = Boolean(
     (resolvedShop?.qbo_refresh_token || resolvedShop?.qbo_access_token) && resolvedShop?.qbo_realm_id,
   )

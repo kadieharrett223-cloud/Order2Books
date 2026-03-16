@@ -330,6 +330,7 @@ function App() {
   const [syncsLoading, setSyncsLoading] = useState(false);
   const [mappings, setMappings] = useState({ autoMapped: [], needsAttention: [] });
   const [mappingsLoading, setMappingsLoading] = useState(false);
+  const [mappingStatusHint, setMappingStatusHint] = useState('');
   const [mappingEdits, setMappingEdits] = useState({});
   const [mappingItemSearch, setMappingItemSearch] = useState({}); // { mappingId: searchTerm }
   const [mappingItemSearchResults, setMappingItemSearchResults] = useState({}); // { mappingId: [items] }
@@ -385,17 +386,39 @@ function App() {
 
   const loadMappings = async () => {
     setMappingsLoading(true);
+    setMappingStatusHint('');
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, 15000);
+
     try {
-      const response = await apiFetch('/api/mappings');
-      if (!response.ok) return;
+      const response = await apiFetch('/api/mappings', { signal: controller.signal });
+      if (!response.ok) {
+        setMappings({ autoMapped: [], needsAttention: [] });
+        setMappingStatusHint('Could not load product mappings yet. Please refresh.');
+        return;
+      }
+
       const data = await response.json();
       setMappings({
         autoMapped: Array.isArray(data.autoMapped) ? data.autoMapped : [],
         needsAttention: Array.isArray(data.needsAttention) ? data.needsAttention : [],
       });
-    } catch {
+
+      if (data.scanTriggered) {
+        setMappingStatusHint('Product scan started in background. Mappings should appear shortly.');
+      }
+    } catch (error) {
       setMappings({ autoMapped: [], needsAttention: [] });
+      if (error?.name === 'AbortError') {
+        setMappingStatusHint('Loading mappings timed out. Try Refresh or Run Scan.');
+      } else {
+        setMappingStatusHint('Failed to load mappings. Try Refresh or Run Scan.');
+      }
     } finally {
+      window.clearTimeout(timeoutId);
       setMappingsLoading(false);
     }
   };
@@ -1468,6 +1491,7 @@ function App() {
                     {scanBusy ? 'Scanning...' : 'Run Scan'}
                   </button>
                 </div>
+                {mappingStatusHint ? <p className="form-hint" style={{ marginBottom: '10px' }}>{mappingStatusHint}</p> : null}
                 <div className="table-container">
                   <table className="sync-table">
                     <thead>
