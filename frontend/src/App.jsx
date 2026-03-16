@@ -409,6 +409,8 @@ function App() {
 
       if (data.scanTriggered) {
         setMappingStatusHint('Product scan started in background. Mappings should appear shortly.');
+      } else if (data.scanInProgress) {
+        setMappingStatusHint('Product scan is still running in background. Mappings should appear shortly.');
       }
     } catch (error) {
       setMappings({ autoMapped: [], needsAttention: [] });

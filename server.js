@@ -95,6 +95,7 @@ const PLAN_CONFIG = {
 
 const ALLOW_DEV_WEBHOOK_WITHOUT_HMAC = process.env.ALLOW_DEV_WEBHOOK_WITHOUT_HMAC === 'true'
 const mappingScanCooldownByShopId = new Map()
+const mappingScanInProgressByShopId = new Map()
 
 const COMPLIANCE_WEBHOOKS = [
   {
@@ -1327,6 +1328,42 @@ async function runMappingScanForShop(shop) {
   })
 }
 
+function triggerMappingScan(shop, { force = false } = {}) {
+  if (!shop?.id || !shop?.shopify_access_token || !shop?.qbo_realm_id || (!shop?.qbo_access_token && !shop?.qbo_refresh_token)) {
+    return false
+  }
+
+  if (mappingScanInProgressByShopId.get(shop.id)) {
+    return false
+  }
+
+  if (!force) {
+    const cooldownMs = 2 * 60 * 1000
+    const now = Date.now()
+    const lastTriggeredAt = Number(mappingScanCooldownByShopId.get(shop.id) || 0)
+    if (Number.isFinite(lastTriggeredAt) && now - lastTriggeredAt <= cooldownMs) {
+      return false
+    }
+    mappingScanCooldownByShopId.set(shop.id, now)
+  } else {
+    mappingScanCooldownByShopId.set(shop.id, Date.now())
+  }
+
+  mappingScanInProgressByShopId.set(shop.id, true)
+
+  Promise.resolve()
+    .then(() => runMappingScanForShop(shop))
+    .catch((error) => {
+      console.error('Mapping scan failed:', error)
+    })
+    .finally(() => {
+      mappingScanInProgressByShopId.set(shop.id, false)
+      mappingScanCooldownByShopId.set(shop.id, Date.now())
+    })
+
+  return true
+}
+
 function buildQboSalesItemLine({ amount, description, quantity, unitPrice, itemRef }) {
   return {
     Amount: Number(Number(amount || 0).toFixed(2)),
@@ -1923,9 +1960,7 @@ app.get('/api/auth/qbo/callback', async (req, res) => {
     })
 
     const refreshedShop = await getShopById(shop.id)
-    runMappingScanForShop(refreshedShop).catch((error) => {
-      console.error('Post-install mapping scan failed:', error)
-    })
+    triggerMappingScan(refreshedShop, { force: true })
 
     const embeddedAppUrl = buildEmbeddedShopifyAppUrl(shop.shop_domain, {
       qbo_connected: 1,
@@ -2126,29 +2161,8 @@ app.get('/api/mappings', async (req, res) => {
     [activeShop.id],
   )
 
-  let scanTriggered = false
-  if (
-    mappings.length === 0 &&
-    activeShop.shopify_access_token &&
-    activeShop.qbo_realm_id &&
-    (activeShop.qbo_access_token || activeShop.qbo_refresh_token)
-  ) {
-    const cooldownMs = 2 * 60 * 1000
-    const now = Date.now()
-    const lastTriggeredAt = Number(mappingScanCooldownByShopId.get(activeShop.id) || 0)
-
-    if (!Number.isFinite(lastTriggeredAt) || now - lastTriggeredAt > cooldownMs) {
-      mappingScanCooldownByShopId.set(activeShop.id, now)
-      scanTriggered = true
-      runMappingScanForShop(activeShop)
-        .catch((error) => {
-          console.error('Auto mapping scan failed:', error)
-        })
-        .finally(() => {
-          mappingScanCooldownByShopId.set(activeShop.id, Date.now())
-        })
-    }
-  }
+  const scanTriggered = mappings.length === 0 ? triggerMappingScan(activeShop) : false
+  const scanInProgress = Boolean(mappingScanInProgressByShopId.get(activeShop.id))
 
   const formatted = mappings.map((mapping) => ({
     id: mapping.id,
@@ -2165,6 +2179,7 @@ app.get('/api/mappings', async (req, res) => {
     autoMapped: formatted.filter((mapping) => mapping.status === 'mapped'),
     needsAttention: formatted.filter((mapping) => mapping.status !== 'mapped'),
     scanTriggered,
+    scanInProgress,
   })
 })
 
@@ -2178,11 +2193,13 @@ app.post('/api/mappings/scan', async (req, res) => {
     return res.status(400).json({ error: 'QuickBooks must be connected before running a mapping scan.' })
   }
 
-  runMappingScanForShop(activeShop).catch((error) => {
-    console.error('Mapping scan failed:', error)
-  })
+  const scanTriggered = triggerMappingScan(activeShop, { force: true })
 
-  return res.status(202).json({ success: true, message: 'Mapping scan started.' })
+  return res.status(202).json({
+    success: true,
+    scanTriggered,
+    message: scanTriggered ? 'Mapping scan started.' : 'Mapping scan is already running.',
+  })
 })
 
 app.post('/api/mappings/:mappingId', async (req, res) => {
