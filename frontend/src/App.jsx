@@ -171,8 +171,29 @@ function redirectToTop(url) {
   let targetUrl = url;
 
   try {
-    if (typeof window !== 'undefined') {
-      targetUrl = new URL(String(url || ''), window.location.origin).toString();
+    if (typeof window !== 'undefined' && String(url || '').startsWith('/')) {
+      // Check if this is a Shopify embedded app (admin.shopify.com context)
+      const isEmbeddedApp = window.location.origin.includes('admin.shopify.com');
+      
+      if (isEmbeddedApp) {
+        // For embedded apps, we need to construct the URL to our own domain
+        // Get the app's own origin - try to extract from window.shopify context or use a fallback
+        let appOrigin = 'https://order2-books.vercel.app'; // Fallback
+        
+        try {
+          // Try to get from window globals if Shopify provides it
+          if (window.appOrigin) {
+            appOrigin = window.appOrigin;
+          }
+        } catch {
+          // Use fallback
+        }
+        
+        targetUrl = new URL(url, appOrigin).toString();
+      } else {
+        // For standalone context, use window.location.origin
+        targetUrl = new URL(String(url || ''), window.location.origin).toString();
+      }
     }
   } catch {
     targetUrl = url;
