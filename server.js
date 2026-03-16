@@ -257,6 +257,45 @@ app.get('/api/debug/shop-qbo-status/:shopDomain', async (req, res) => {
   }
 })
 
+// DEBUG: Clear QBO tokens for a shop (public endpoint for troubleshooting)
+app.post('/api/debug/clear-qbo-tokens/:shopDomain', async (req, res) => {
+  try {
+    const shopDomain = String(req.params.shopDomain || '').toLowerCase().trim()
+    if (!validateShopDomain(shopDomain)) {
+      return res.status(400).json({ error: 'Invalid shop domain' })
+    }
+    
+    const db = await getDb()
+    const shop = await db.get('SELECT * FROM shops WHERE shop_domain = ?', [shopDomain])
+    
+    if (!shop) {
+      return res.status(404).json({ error: 'Shop not found' })
+    }
+    
+    await db.run(
+      `UPDATE shops
+       SET qbo_realm_id = NULL,
+           qbo_access_token = NULL,
+           qbo_refresh_token = NULL,
+           qbo_token_expires_at = NULL,
+           qbo_sync_cutoff_at = NULL,
+           updated_at = ?
+       WHERE id = ?`,
+      [nowIso(), shop.id],
+    )
+    
+    console.log(`[DEBUG] Cleared QBO tokens for shop: ${shopDomain}`)
+    
+    return res.json({
+      success: true,
+      message: `QBO tokens cleared for ${shopDomain}`,
+      shop_domain: shopDomain
+    })
+  } catch (error) {
+    return res.status(500).json({ error: error.message })
+  }
+})
+
 app.use('/api', verifyShopifySession)
 
 function nowIso() {
