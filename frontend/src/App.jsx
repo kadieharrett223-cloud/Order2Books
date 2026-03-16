@@ -791,17 +791,6 @@ function App() {
   const recentActivity = visibleLogs.slice(0, 4);
   const recentTableSyncs = visibleSyncs.slice(0, 5);
 
-  const handleShopifyConnectClick = async () => {
-    const fallbackShop = await getCurrentShopDomainWithTokenFallback();
-    const shop = fallbackShop || String(settings.shopifyDomain || '').trim().toLowerCase();
-    if (shop && shop.endsWith('.myshopify.com')) {
-      redirectToTop(`/api/auth/shopify/install?shop=${encodeURIComponent(shop)}`);
-      return;
-    }
-
-    redirectToTop('/api/auth/shopify/install');
-  };
-
   const handleQboConnectClick = async () => {
     const fallbackShop = await getCurrentShopDomainWithTokenFallback();
     const shop = fallbackShop || String(settings.shopifyDomain || '').trim().toLowerCase();
@@ -954,16 +943,8 @@ function App() {
                   <div className={`account-status ${effectiveSettings.shopifyConnected ? 'connected' : 'disconnected'}`}>
                     {effectiveSettings.shopifyConnected ? '✓ Connected' : '✕ Not connected'}
                   </div>
-                  <div className="account-meta">Store connection status</div>
+                  <div className="account-meta">Connects automatically when app is installed</div>
                 </div>
-                {!effectiveSettings.shopifyConnected && (
-                  <button
-                    className="btn-connect"
-                    onClick={handleShopifyConnectClick}
-                  >
-                    Connect
-                  </button>
-                )}
               </div>
 
               <div className="account-arrow">→</div>
