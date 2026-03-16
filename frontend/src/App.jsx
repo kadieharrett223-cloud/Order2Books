@@ -1555,7 +1555,7 @@ function App() {
                         {effectiveSettings.qboConnected ? (
                           <button
                             type="button"
-                            className="btn-secondary"
+                            className="btn-secondary-dark"
                             onClick={handleQboDisconnectClick}
                             disabled={qboDisconnectBusy}
                           >
