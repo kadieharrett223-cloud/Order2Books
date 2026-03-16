@@ -604,6 +604,20 @@ async function updateQboTokensForShop({ shopId, realmId, accessToken, refreshTok
   )
 }
 
+async function clearQboTokensForShop(shopId) {
+  const db = await getDb()
+  await db.run(
+    `UPDATE shops
+     SET qbo_realm_id = NULL,
+         qbo_access_token = NULL,
+         qbo_refresh_token = NULL,
+         qbo_token_expires_at = NULL,
+         updated_at = ?
+     WHERE id = ?`,
+    [nowIso(), shopId],
+  )
+}
+
 async function markShopUninstalled(shopDomain) {
   const db = await getDb()
   await db.run(
@@ -2270,6 +2284,25 @@ app.post('/api/mappings/scan', async (req, res) => {
     scanTriggered,
     message: scanTriggered ? 'Mapping scan started.' : 'Mapping scan is already running.',
   })
+})
+
+app.post('/api/auth/qbo/disconnect', async (req, res) => {
+  const activeShop = await getActiveInstalledShop(req)
+  if (!activeShop) {
+    return res.status(401).json({ error: 'Shopify session required.' })
+  }
+
+  await clearQboTokensForShop(activeShop.id)
+
+  await writeSyncLog({
+    shopId: activeShop.id,
+    eventType: 'qbo/oauth',
+    status: 'success',
+    message: 'QuickBooks disconnected and tokens cleared',
+    payload: { disconnected: true },
+  })
+
+  return res.json({ success: true, message: 'QuickBooks disconnected.' })
 })
 
 app.post('/api/mappings/:mappingId', async (req, res) => {
