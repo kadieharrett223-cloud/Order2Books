@@ -661,7 +661,7 @@ async function getActiveInstalledShop(req) {
         `SELECT *
          FROM shops
          WHERE shop_domain = ?
-         ORDER BY is_installed DESC, datetime(updated_at) DESC
+         ORDER BY is_installed DESC, updated_at DESC
          LIMIT 1`,
         [fallbackShopDomain],
       )
@@ -675,7 +675,7 @@ async function getActiveInstalledShop(req) {
       `SELECT *
        FROM shops
        WHERE is_installed = 1
-       ORDER BY datetime(updated_at) DESC
+      ORDER BY updated_at DESC
        LIMIT 1`,
     )
 
@@ -687,7 +687,7 @@ async function getActiveInstalledShop(req) {
       `SELECT *
        FROM shops
        WHERE shopify_access_token IS NOT NULL AND shopify_access_token <> ''
-       ORDER BY datetime(updated_at) DESC
+      ORDER BY updated_at DESC
        LIMIT 1`,
     )
 
@@ -695,7 +695,7 @@ async function getActiveInstalledShop(req) {
   }
 
   const installedRequestedShop = await db.get(
-    `SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1 ORDER BY datetime(updated_at) DESC LIMIT 1`,
+    `SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1 ORDER BY updated_at DESC LIMIT 1`,
     [requestedShopDomain],
   )
 
@@ -704,7 +704,7 @@ async function getActiveInstalledShop(req) {
   }
 
   const tokenizedRequestedShop = await db.get(
-    `SELECT * FROM shops WHERE shop_domain = ? ORDER BY datetime(updated_at) DESC LIMIT 1`,
+    `SELECT * FROM shops WHERE shop_domain = ? ORDER BY updated_at DESC LIMIT 1`,
     [requestedShopDomain],
   )
 
@@ -2443,7 +2443,7 @@ app.get('/api/mappings', async (req, res) => {
       `SELECT *
      FROM product_mappings
      WHERE shop_id = ?
-     ORDER BY datetime(updated_at) DESC
+    ORDER BY updated_at DESC
      LIMIT 500`,
       [activeShop.id],
     )
@@ -2555,7 +2555,7 @@ app.post('/api/auth/qbo/disconnect', async (req, res) => {
     `SELECT *
      FROM shops
      WHERE shop_domain = ?
-     ORDER BY datetime(updated_at) DESC
+    ORDER BY updated_at DESC
      LIMIT 1`,
     [resolvedShopDomain],
   )
@@ -2673,7 +2673,7 @@ app.get('/api/settings', async (req, res) => {
       `SELECT *
        FROM shops
        WHERE shop_domain = ? AND is_installed = 1
-       ORDER BY datetime(updated_at) DESC
+      ORDER BY updated_at DESC
        LIMIT 1`,
       [resolvedShopDomain],
     )
@@ -2684,7 +2684,7 @@ app.get('/api/settings', async (req, res) => {
       `SELECT *
        FROM shops
        WHERE shop_domain = ?
-       ORDER BY datetime(updated_at) DESC
+      ORDER BY updated_at DESC
        LIMIT 1`,
       [resolvedShopDomain],
     )
