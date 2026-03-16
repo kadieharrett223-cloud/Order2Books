@@ -3,6 +3,7 @@ import './App.css';
 
 const SHOP_STORAGE_KEY = 'order2books-active-shop';
 const CONNECTION_STATE_KEY = 'order2books-connection-state';
+const QBO_MANUAL_DISCONNECT_KEY = 'order2books-qbo-manual-disconnect';
 
 function persistShopDomain(shopDomain) {
   try {
@@ -60,6 +61,29 @@ function clearQboConnectionStateSnapshot() {
     });
   } catch {
   }
+}
+
+function markManualQboDisconnect() {
+  try {
+    localStorage.setItem(QBO_MANUAL_DISCONNECT_KEY, '1');
+  } catch {
+  }
+}
+
+function clearManualQboDisconnect() {
+  try {
+    localStorage.removeItem(QBO_MANUAL_DISCONNECT_KEY);
+  } catch {
+  }
+}
+
+function hasManualQboDisconnect() {
+  try {
+    return localStorage.getItem(QBO_MANUAL_DISCONNECT_KEY) === '1';
+  } catch {
+  }
+
+  return false;
 }
 
 function readConnectionStateSnapshot() {
@@ -378,6 +402,7 @@ function App() {
   const [settings, setSettings] = useState(() => {
     const cached = readConnectionStateSnapshot();
     const storedShop = readStoredShopDomain();
+    const manuallyDisconnectedQbo = hasManualQboDisconnect();
     const seeded = {
       ...DEFAULT_SETTINGS,
       ...(cached || {}),
@@ -385,6 +410,11 @@ function App() {
 
     if (!seeded.shopifyDomain && storedShop) {
       seeded.shopifyDomain = storedShop;
+    }
+
+    if (manuallyDisconnectedQbo) {
+      seeded.qboConnected = false;
+      seeded.qboCompanyName = '';
     }
 
     if (seeded.qboConnected) {
@@ -589,6 +619,7 @@ function App() {
         if (validShop) {
           persistShopDomain(shop);
         }
+        clearManualQboDisconnect();
         setSettings((previous) => ({
           ...previous,
           shopifyDomain: validShop ? (previous.shopifyDomain || shop) : previous.shopifyDomain,
@@ -718,6 +749,7 @@ function App() {
       const fallbackShop = await getCurrentShopDomainWithTokenFallback();
       const cached = readConnectionStateSnapshot();
       const hasAuthoritativeConnectionState = Boolean(data.connection_state_authoritative);
+      const manuallyDisconnectedQbo = hasManualQboDisconnect();
       const apiSettings = data.settings || {};
       const apiShop = String(data.shop || apiSettings.shopifyDomain || '').trim().toLowerCase();
       const apiShopifyConnected = Boolean(data.shopify_connected || apiSettings.shopifyConnected);
@@ -736,9 +768,11 @@ function App() {
         nextSettings.shopifyDomain = apiShop;
       }
 
-      const resolvedQboConnected = hasAuthoritativeConnectionState
+      const resolvedQboConnected = manuallyDisconnectedQbo
         ? Boolean(apiQboConnected)
-        : Boolean(apiQboConnected || previousQboConnected || cachedQboConnected);
+        : hasAuthoritativeConnectionState
+          ? Boolean(apiQboConnected)
+          : Boolean(apiQboConnected || previousQboConnected || cachedQboConnected);
 
       const resolvedShopifyConnected = resolvedQboConnected
         ? true
@@ -748,6 +782,13 @@ function App() {
 
       nextSettings.qboConnected = resolvedQboConnected;
       nextSettings.shopifyConnected = resolvedShopifyConnected;
+      if (!resolvedQboConnected) {
+        nextSettings.qboCompanyName = '';
+      }
+
+      if (resolvedQboConnected) {
+        clearManualQboDisconnect();
+      }
 
       if (!nextSettings.shopifyDomain && fallbackShop) {
         nextSettings.shopifyDomain = fallbackShop;
@@ -980,6 +1021,7 @@ function App() {
           qboConnected: false,
           qboCompanyName: '',
         };
+        markManualQboDisconnect();
         persistConnectionStateSnapshot(next);
         return next;
       });
