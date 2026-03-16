@@ -485,8 +485,9 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!settingsLoaded) return;
     persistConnectionStateSnapshot(settings);
-  }, [settings]);
+  }, [settingsLoaded, settings]);
 
   useEffect(() => {
     try {
@@ -594,20 +595,33 @@ function App() {
       const data = await response.json();
       const fallbackShop = await getCurrentShopDomainWithTokenFallback();
       const cached = readConnectionStateSnapshot();
+      const apiSettings = data.settings || {};
+      const apiShop = String(data.shop || apiSettings.shopifyDomain || '').trim().toLowerCase();
+      const apiShopifyConnected = Boolean(data.shopify_connected || apiSettings.shopifyConnected);
+      const apiQboConnected = Boolean(data.quickbooks_connected || apiSettings.qboConnected);
       const nextSettings = {
         ...DEFAULT_SETTINGS,
         ...(cached || {}),
-        ...(data.settings || {}),
+        ...apiSettings,
       };
+
+      if (apiShop && apiShop.endsWith('.myshopify.com')) {
+        nextSettings.shopifyDomain = apiShop;
+      }
 
       // Connection flags: use OR merge so once connected, stay connected
       // This prevents mutual exclusion when one OAuth completes
-      if (cached?.shopifyConnected || nextSettings.shopifyConnected) {
-        nextSettings.shopifyConnected = true;
-      }
-      if (cached?.qboConnected || nextSettings.qboConnected) {
-        nextSettings.qboConnected = true;
-      }
+      nextSettings.shopifyConnected = Boolean(
+        cached?.shopifyConnected ||
+        nextSettings.shopifyConnected ||
+        apiShopifyConnected ||
+        (nextSettings.shopifyDomain && nextSettings.shopifyDomain.endsWith('.myshopify.com')),
+      );
+      nextSettings.qboConnected = Boolean(
+        cached?.qboConnected ||
+        nextSettings.qboConnected ||
+        apiQboConnected,
+      );
 
       if (!nextSettings.shopifyDomain && fallbackShop) {
         nextSettings.shopifyDomain = fallbackShop;
