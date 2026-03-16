@@ -2433,12 +2433,21 @@ app.get('/api/settings', async (req, res) => {
     ? requestedShopDomain
     : String(settings?.shopify_domain || '').toLowerCase().trim()
   const resolvedShopDomain = activeShop?.shop_domain || (validateShopDomain(fallbackShopDomain) ? fallbackShopDomain : '')
-  const resolvedShop =
-    activeShop ||
-    (validateShopDomain(resolvedShopDomain)
-      ? await db.get(`SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1`, [resolvedShopDomain])
-      : null)
-  const connectionStateAuthoritative = Boolean(resolvedShop?.is_installed)
+  
+  // Try to find shop: first with is_installed=1, then without (fallback for more resilience)
+  let resolvedShop = activeShop
+  if (!resolvedShop && validateShopDomain(resolvedShopDomain)) {
+    resolvedShop = await db.get(`SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1`, [resolvedShopDomain])
+  }
+  if (!resolvedShop && validateShopDomain(resolvedShopDomain)) {
+    // Fallback: treat any shop record as installed if it has shopify_access_token
+    resolvedShop = await db.get(`SELECT * FROM shops WHERE shop_domain = ?`, [resolvedShopDomain])
+    if (resolvedShop && !resolvedShop.shopify_access_token) {
+      resolvedShop = null
+    }
+  }
+  
+  const connectionStateAuthoritative = Boolean(resolvedShop?.is_installed || (resolvedShop?.shopify_access_token && resolvedShop?.shop_domain))
   const hasStoredQboConnection = Boolean(
     (resolvedShop?.qbo_refresh_token || resolvedShop?.qbo_access_token) && resolvedShop?.qbo_realm_id,
   )
