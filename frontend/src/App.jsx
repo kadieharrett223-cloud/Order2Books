@@ -50,6 +50,18 @@ function persistConnectionStateSnapshot(settings) {
   }
 }
 
+function clearQboConnectionStateSnapshot() {
+  try {
+    const existing = readConnectionStateSnapshot() || {};
+    persistConnectionStateSnapshot({
+      ...existing,
+      qboConnected: false,
+      qboCompanyName: '',
+    });
+  } catch {
+  }
+}
+
 function readConnectionStateSnapshot() {
   try {
     const raw = localStorage.getItem(CONNECTION_STATE_KEY);
@@ -948,7 +960,13 @@ function App() {
 
     setQboDisconnectBusy(true);
     try {
-      const response = await apiFetch('/api/auth/qbo/disconnect', { method: 'POST' });
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+      const response = await apiFetch('/api/auth/qbo/disconnect', {
+        method: 'POST',
+        signal: controller.signal,
+      });
+      window.clearTimeout(timeoutId);
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -956,17 +974,36 @@ function App() {
         return false;
       }
 
-      setSettings((previous) => ({
-        ...previous,
-        qboConnected: false,
-        qboCompanyName: '',
+      setSettings((previous) => {
+        const next = {
+          ...previous,
+          qboConnected: false,
+          qboCompanyName: '',
+        };
+        persistConnectionStateSnapshot(next);
+        return next;
+      });
+      clearQboConnectionStateSnapshot();
+      setMappings((previous) => ({
+        autoMapped: Array.isArray(previous?.autoMapped) ? previous.autoMapped : [],
+        needsAttention: Array.isArray(previous?.needsAttention) ? previous.needsAttention : [],
       }));
       setMappingStatusHint('QuickBooks disconnected. You can now connect a different Intuit account.');
-      await loadSettings();
-      await loadMappings();
+
+      window.setTimeout(() => {
+        loadSettings().catch(() => {
+        });
+        loadMappings().catch(() => {
+        });
+      }, 0);
+
       return true;
-    } catch {
-      alert('Failed to disconnect QuickBooks.');
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        alert('Disconnecting QuickBooks timed out. Please try again.');
+      } else {
+        alert('Failed to disconnect QuickBooks.');
+      }
       return false;
     } finally {
       setQboDisconnectBusy(false);
