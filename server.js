@@ -882,6 +882,10 @@ async function registerComplianceWebhooks({ shopDomain, accessToken }) {
 }
 
 async function exchangeQboCodeForToken({ code, redirectUri }) {
+  if (!code) {
+    throw new Error('Missing authorization code from Intuit OAuth callback')
+  }
+  
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
@@ -1950,7 +1954,32 @@ app.get('/api/auth/qbo/start', async (req, res) => {
 
 app.get('/api/auth/qbo/callback', async (req, res) => {
   try {
-    const { state, code } = req.query
+    const { state, code, error, error_description } = req.query
+    
+    // Check for OAuth error from Intuit
+    if (error) {
+      await writeSyncLog({
+        eventType: 'qbo/oauth',
+        status: 'failed',
+        message: `Intuit OAuth error: ${error}`,
+        payload: { error, error_description },
+      })
+      const fallbackUrl = buildAppUrlFromRequest(req, `/?qbo_error=intuit_oauth_failed&error=${encodeURIComponent(error)}`)
+      return res.redirect(fallbackUrl)
+    }
+    
+    // Validate authorization code
+    if (!code) {
+      await writeSyncLog({
+        eventType: 'qbo/oauth',
+        status: 'failed',
+        message: 'Missing authorization code in callback',
+        payload: req.query,
+      })
+      const fallbackUrl = buildAppUrlFromRequest(req, `/?qbo_error=missing_auth_code`)
+      return res.redirect(fallbackUrl)
+    }
+    
     const rawState = String(state || '').trim()
 
     let statePayload = null
