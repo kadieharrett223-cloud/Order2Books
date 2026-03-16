@@ -221,6 +221,42 @@ app.get('/api/debug/env-config', async (req, res) => {
   })
 })
 
+// DEBUG: Check what's actually in the database for a shop
+app.get('/api/debug/shop-qbo-status/:shopDomain', async (req, res) => {
+  try {
+    const shopDomain = String(req.params.shopDomain || '').toLowerCase().trim()
+    if (!validateShopDomain(shopDomain)) {
+      return res.status(400).json({ error: 'Invalid shop domain' })
+    }
+    
+    const db = await getDb()
+    const shop = await db.get('SELECT * FROM shops WHERE shop_domain = ?', [shopDomain])
+    
+    if (!shop) {
+      return res.json({
+        shop_domain: shopDomain,
+        found: false,
+        message: 'Shop not found in database'
+      })
+    }
+    
+    return res.json({
+      shop_domain: shop.shop_domain,
+      found: true,
+      is_installed: Boolean(shop.is_installed),
+      has_qbo_realm_id: Boolean(shop.qbo_realm_id),
+      has_qbo_access_token: Boolean(shop.qbo_access_token),
+      has_qbo_refresh_token: Boolean(shop.qbo_refresh_token),
+      qbo_realm_id: shop.qbo_realm_id || null,
+      qbo_token_expires_at: shop.qbo_token_expires_at || null,
+      qbo_sync_cutoff_at: shop.qbo_sync_cutoff_at || null,
+      message: `Shop has ${Boolean(shop.qbo_realm_id && shop.qbo_access_token) ? 'QBO tokens' : 'NO QBO tokens'}`
+    })
+  } catch (error) {
+    return res.status(500).json({ error: error.message })
+  }
+})
+
 app.use('/api', verifyShopifySession)
 
 function nowIso() {
