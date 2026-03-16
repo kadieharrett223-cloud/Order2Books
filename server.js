@@ -2439,10 +2439,11 @@ app.get('/api/settings', async (req, res) => {
       ? await db.get(`SELECT * FROM shops WHERE shop_domain = ? AND is_installed = 1`, [resolvedShopDomain])
       : null)
   const connectionStateAuthoritative = Boolean(resolvedShop?.is_installed)
-  const hasQboConnection = Boolean(
+  const hasStoredQboConnection = Boolean(
     (resolvedShop?.qbo_refresh_token || resolvedShop?.qbo_access_token) && resolvedShop?.qbo_realm_id,
   )
-  const qboCompanyName = hasQboConnection ? await getQboCompanyName(resolvedShop) : ''
+  const qboCompanyName = hasStoredQboConnection ? await getQboCompanyName(resolvedShop) : ''
+  const hasQboConnection = Boolean(hasStoredQboConnection && qboCompanyName)
 
   return res.json({
     connection_state_authoritative: connectionStateAuthoritative,
