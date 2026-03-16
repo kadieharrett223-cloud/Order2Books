@@ -1206,11 +1206,15 @@ function App() {
               <div className="account-card">
                 <div className="account-logo qb-logo">🟢</div>
                 <div className="account-info">
-                  <div className="account-name">{effectiveSettings.qboCompanyName || 'QuickBooks Online'}</div>
+                  <div className="account-name">QuickBooks Online</div>
                   <div className={`account-status ${effectiveSettings.qboConnected ? 'connected' : 'disconnected'}`}>
                     {effectiveSettings.qboConnected ? '✓ Connected' : '✕ Disconnected'}
                   </div>
-                  <div className="account-meta">QuickBooks connection status</div>
+                  <div className="account-meta">
+                    {effectiveSettings.qboConnected
+                      ? (effectiveSettings.qboCompanyName || 'Connected business name unavailable')
+                      : 'QuickBooks connection status'}
+                  </div>
                 </div>
                 <button
                   className="btn-connect"
@@ -1515,9 +1519,9 @@ function App() {
                           <div className="connected-status-badge connected" style={{ minWidth: '280px' }}>
                             <span className="connected-status-icon">✓</span>
                             <div>
-                              <div className="connected-status-label">Connected to QuickBooks</div>
+                              <div className="connected-status-label">Connected to QuickBooks Online</div>
                               <div className="connected-status-sub">
-                                {effectiveSettings.qboCompanyName || 'QuickBooks account is active for this store'}
+                                {effectiveSettings.qboCompanyName || 'Connected business name unavailable'}
                               </div>
                             </div>
                           </div>

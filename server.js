@@ -944,6 +944,25 @@ async function qboRequest({ shop, method, path, body }) {
   return response.json()
 }
 
+async function getQboCompanyName(shop) {
+  if (!shop?.qbo_realm_id || (!shop?.qbo_access_token && !shop?.qbo_refresh_token)) {
+    return ''
+  }
+
+  try {
+    const response = await qboRequest({
+      shop,
+      method: 'GET',
+      path: `/v3/company/${shop.qbo_realm_id}/companyinfo/${shop.qbo_realm_id}?minorversion=${QBO_MINOR_VERSION}`,
+    })
+
+    return String(response?.CompanyInfo?.CompanyName || response?.CompanyInfo?.LegalName || '').trim()
+  } catch (error) {
+    console.warn('Unable to fetch QuickBooks company name:', error?.message || String(error))
+    return ''
+  }
+}
+
 async function qboFindCustomerByEmail(shop, email) {
   if (!email) return null
   const query = `select * from Customer where PrimaryEmailAddr = '${email.replace(/'/g, "\\'")}' maxresults 1`
@@ -2392,6 +2411,7 @@ app.get('/api/settings', async (req, res) => {
   const hasQboConnection = Boolean(
     (resolvedShop?.qbo_refresh_token || resolvedShop?.qbo_access_token) && resolvedShop?.qbo_realm_id,
   )
+  const qboCompanyName = hasQboConnection ? await getQboCompanyName(resolvedShop) : ''
 
   return res.json({
     connection_state_authoritative: connectionStateAuthoritative,
@@ -2403,7 +2423,7 @@ app.get('/api/settings', async (req, res) => {
       shopifyApiKey: resolvedShop?.shopify_access_token || settings?.shopify_api_key ? '***' : '',
       shopifyConnected: connectionStateAuthoritative,
       qboConnected: hasQboConnection,
-      qboCompanyName: resolvedShop?.qbo_realm_id ? `QuickBooks realm ${resolvedShop.qbo_realm_id}` : '',
+      qboCompanyName,
       autoDecrementInventory: Boolean(settings?.auto_decrement_inventory),
       autoCreateQboItems: settings?.auto_create_qbo_items !== 0,
       captureMode: normalizeCaptureMode(settings?.capture_mode),
