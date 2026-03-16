@@ -402,15 +402,15 @@ function App() {
       }
 
       const data = await response.json();
+      const autoMapped = Array.isArray(data.autoMapped) ? data.autoMapped : [];
+      const needsAttention = Array.isArray(data.needsAttention) ? data.needsAttention : [];
       setMappings({
-        autoMapped: Array.isArray(data.autoMapped) ? data.autoMapped : [],
-        needsAttention: Array.isArray(data.needsAttention) ? data.needsAttention : [],
+        autoMapped,
+        needsAttention,
       });
 
       const debug = data?.debug || {};
-      const hasNoMappings =
-        (Array.isArray(data.autoMapped) ? data.autoMapped.length : 0) === 0
-        && (Array.isArray(data.needsAttention) ? data.needsAttention.length : 0) === 0;
+      const hasNoMappings = autoMapped.length === 0 && needsAttention.length === 0;
 
       if (hasNoMappings && debug?.emptyReason) {
         if (debug.emptyReason === 'missing_shopify_token') {
@@ -419,17 +419,26 @@ function App() {
           setMappingStatusHint('Temporary debug: QuickBooks company (realm) is missing. Reconnect QuickBooks.');
         } else if (debug.emptyReason === 'missing_qbo_token') {
           setMappingStatusHint('Temporary debug: QuickBooks token is missing or expired. Reconnect QuickBooks.');
+        } else if (debug.emptyReason === 'missing_shop_context') {
+          setMappingStatusHint('Temporary debug: Shop context missing. Re-open the embedded app from Shopify admin.');
         } else if (debug.emptyReason === 'scan_in_progress') {
           setMappingStatusHint('Product scan is still running in background. Mappings should appear shortly.');
         } else if (debug.emptyReason === 'scan_started') {
           setMappingStatusHint('Product scan started in background. Mappings should appear shortly.');
         } else if (debug.emptyReason === 'no_products_found') {
           setMappingStatusHint('No Shopify products found to map yet.');
+        } else {
+          setMappingStatusHint('No product mappings yet. Run Scan and refresh in a few seconds.');
         }
 
         if (debug.lastScanStatus && debug.lastScanMessage) {
-          setMappingStatusHint((previous) => `${previous} Last scan: ${debug.lastScanStatus} — ${debug.lastScanMessage}`);
+          setMappingStatusHint((previous) => {
+            const prefix = previous ? `${previous} ` : '';
+            return `${prefix}Last scan: ${debug.lastScanStatus} — ${debug.lastScanMessage}`;
+          });
         }
+      } else if (hasNoMappings) {
+        setMappingStatusHint('No product mappings yet. Run Scan and refresh in a few seconds.');
       }
 
       if (data.scanTriggered) {

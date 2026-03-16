@@ -2156,7 +2156,23 @@ app.get('/api/logs', async (req, res) => {
 app.get('/api/mappings', async (req, res) => {
   const activeShop = await getActiveInstalledShop(req)
   if (!activeShop) {
-    return res.json({ autoMapped: [], needsAttention: [] })
+    return res.json({
+      autoMapped: [],
+      needsAttention: [],
+      scanTriggered: false,
+      scanInProgress: false,
+      debug: {
+        eligibleForScan: false,
+        hasShopifyToken: false,
+        hasQboRealm: false,
+        hasQboToken: false,
+        emptyReason: 'missing_shop_context',
+        mappingCount: 0,
+        lastScanStatus: '',
+        lastScanMessage: '',
+        lastScanAt: null,
+      },
+    })
   }
 
   const db = await getDb()
