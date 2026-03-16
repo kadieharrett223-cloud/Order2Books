@@ -200,7 +200,9 @@ function redirectToTop(url) {
 async function getShopifySessionToken() {
   try {
     if (typeof window !== 'undefined' && window.shopify && typeof window.shopify.idToken === 'function') {
-      return await window.shopify.idToken();
+      const tokenPromise = window.shopify.idToken();
+      const timeoutPromise = new Promise((resolve) => window.setTimeout(() => resolve(null), 3000));
+      return await Promise.race([tokenPromise, timeoutPromise]);
     }
   } catch {
   }
@@ -214,7 +216,9 @@ async function apiFetch(url, options = {}) {
 
   try {
     if (typeof window !== 'undefined' && typeof url === 'string' && url.startsWith('/api/')) {
-      const shop = await getCurrentShopDomainWithTokenFallback();
+      const shopPromise = getCurrentShopDomainWithTokenFallback();
+      const shopTimeout = new Promise((resolve) => window.setTimeout(() => resolve(''), 3000));
+      const shop = await Promise.race([shopPromise, shopTimeout]);
 
       if (shop && shop.endsWith('.myshopify.com')) {
         const request = new URL(url, window.location.origin);
