@@ -2538,6 +2538,39 @@ app.get('/api/debug/qbo-status', async (req, res) => {
   }
 })
 
+// DEBUG: Force clear QBO tokens (useful for testing disconnect)
+app.post('/api/debug/qbo-force-clear', async (req, res) => {
+  try {
+    const activeShop = await getActiveInstalledShop(req)
+    if (!activeShop) {
+      return res.status(404).json({ error: 'Active shop not found. Launch the app from a connected Shopify store.' })
+    }
+
+    const db = await getDb()
+    await db.run(
+      `UPDATE shops
+       SET qbo_realm_id = NULL,
+           qbo_access_token = NULL,
+           qbo_refresh_token = NULL,
+           qbo_token_expires_at = NULL,
+           qbo_sync_cutoff_at = NULL,
+           updated_at = ?
+       WHERE id = ?`,
+      [nowIso(), activeShop.id],
+    )
+
+    console.log(`[DEBUG] Force-cleared QBO tokens for shop: ${activeShop.shop_domain}`)
+
+    return res.json({
+      success: true,
+      message: 'QuickBooks tokens force-cleared',
+      shop: activeShop.shop_domain,
+    })
+  } catch (error) {
+    return res.status(500).json({ error: error.message })
+  }
+})
+
 app.post('/api/settings', async (req, res) => {
   const activeShop = await getActiveInstalledShop(req)
   if (!activeShop) {
