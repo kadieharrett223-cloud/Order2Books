@@ -1014,6 +1014,13 @@ function App() {
     if (!confirmed) return;
 
     setQboDisconnectBusy(true);
+    
+    // Safety timeout: auto-clear busy flag after 15 seconds if something goes wrong
+    const safetyTimeout = window.setTimeout(() => {
+      console.warn('Disconnect safety timeout triggered');
+      setQboDisconnectBusy(false);
+    }, 15000);
+    
     try {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 10000);
@@ -1062,15 +1069,25 @@ function App() {
       }
       return false;
     } finally {
+      window.clearTimeout(safetyTimeout);
       setQboDisconnectBusy(false);
     }
   };
 
   const handleQboSwitchAccountClick = async () => {
     if (qboDisconnectBusy) return;
-    const disconnected = await handleQboDisconnectClick();
-    if (disconnected) {
-      await handleQboConnectClick();
+    
+    try {
+      const disconnected = await handleQboDisconnectClick();
+      if (disconnected) {
+        // Disconnect was successful, now connect to new account
+        await handleQboConnectClick();
+      }
+    } catch (error) {
+      console.error('Switch account error:', error);
+      // Make sure busy flag is cleared even on error
+      setQboDisconnectBusy(false);
+      alert('Failed to switch accounts. Please try again.');
     }
   };
 
