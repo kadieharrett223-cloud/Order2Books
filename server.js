@@ -1905,7 +1905,10 @@ app.get('/api/auth/shopify/callback', async (req, res) => {
 
 app.get('/api/auth/qbo/start', async (req, res) => {
   try {
+    console.log('[QBO START] Received request, checking shop...')
+    
     if (shouldRedirectToCanonicalAppOrigin(req)) {
+      console.log('[QBO START] Redirecting to canonical app origin')
       return res.redirect(buildAppUrlFromRequest(req, `/api/auth/qbo/start?${new URLSearchParams(req.query).toString()}`))
     }
 
@@ -1918,16 +1921,19 @@ app.get('/api/auth/qbo/start', async (req, res) => {
     }
 
     if (!validateShopDomain(shopDomain)) {
+      console.log('[QBO START] Invalid shop domain:', shopDomain)
       return res.status(400).json({ error: 'Missing or invalid shop domain. Expected *.myshopify.com' })
     }
 
     const shop = await getShopByDomain(shopDomain)
 
     if (!shop) {
+      console.log('[QBO START] Shop not found, redirecting to install:', shopDomain)
       return res.redirect(buildAppUrlFromRequest(req, `/api/auth/shopify/install?shop=${encodeURIComponent(shopDomain)}&next=qbo`))
     }
 
     if (!QBO_CLIENT_ID) {
+      console.log('[QBO START] QBO_CLIENT_ID not configured')
       return res.status(500).json({ error: 'QBO_CLIENT_ID is not configured' })
     }
 
@@ -1946,8 +1952,10 @@ app.get('/api/auth/qbo/start', async (req, res) => {
       `&redirect_uri=${encodeURIComponent(buildQboCallbackUrl(req))}` +
       `&state=${encodeURIComponent(state)}`
 
+    console.log('[QBO START] Redirecting to Intuit:', authorizeUrl.substring(0, 100) + '...')
     return res.redirect(authorizeUrl)
   } catch (error) {
+    console.error('[QBO START] Error:', error.message)
     return res.status(500).json({ error: error.message })
   }
 })
