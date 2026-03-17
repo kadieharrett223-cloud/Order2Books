@@ -1061,34 +1061,29 @@ function App() {
         persistShopDomain(disconnectedShopDomain);
       }
 
+      markManualQboDisconnect();
+      clearQboConnectionStateSnapshot();
+
       setSettings((previous) => {
         const next = {
           ...previous,
           qboConnected: false,
           qboCompanyName: '',
         };
-        markManualQboDisconnect();
         persistConnectionStateSnapshot(next);
         return next;
       });
-      clearQboConnectionStateSnapshot();
       setMappings((previous) => ({
         autoMapped: Array.isArray(previous?.autoMapped) ? previous.autoMapped : [],
         needsAttention: Array.isArray(previous?.needsAttention) ? previous.needsAttention : [],
       }));
       setMappingStatusHint('QuickBooks disconnected. You can now connect a different Intuit account.');
 
+      // Re-fetch settings from the server to confirm the UI reflects the cleared state.
+      // This avoids any redirect/iframe-navigation issues in the Shopify admin embed.
       window.setTimeout(() => {
-        const shopForRefresh = disconnectedShopDomain || getCurrentShopDomain() || String(settings.shopifyDomain || '').trim().toLowerCase();
-        const refreshParams = new URLSearchParams({
-          qbo_disconnected: '1',
-          t: String(Date.now()),
-        });
-        if (shopForRefresh && shopForRefresh.endsWith('.myshopify.com')) {
-          refreshParams.set('shop', shopForRefresh);
-        }
-        redirectToTop(`/?${refreshParams.toString()}`);
-      }, 0);
+        loadSettings();
+      }, 300);
 
       return true;
     } catch (error) {
