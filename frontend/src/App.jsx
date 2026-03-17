@@ -403,6 +403,28 @@ function mappingHintFromEmptyReason(emptyReason) {
   return 'No product mappings yet. Run Scan and refresh in a few seconds.';
 }
 
+function mappingHintFromDiagnostics(diagnostics, { scanTriggered = false, scanInProgress = false, hasMappings = false } = {}) {
+  if (scanInProgress) {
+    return 'Mapping scan is running...';
+  }
+  if (scanTriggered) {
+    return 'Mapping scan started in background. Mappings should appear shortly.';
+  }
+  if (diagnostics?.productCountError) {
+    return `Could not verify Shopify product count: ${diagnostics.productCountError}`;
+  }
+  if (diagnostics?.noShopifyProducts) {
+    return 'No Shopify products found to map yet.';
+  }
+  if (!hasMappings && diagnostics?.emptyReason) {
+    return mappingHintFromEmptyReason(diagnostics.emptyReason);
+  }
+  if (!hasMappings) {
+    return 'No product mappings yet. Run Scan and refresh in a few seconds.';
+  }
+  return '';
+}
+
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('general');
@@ -416,6 +438,7 @@ function App() {
   const [mappings, setMappings] = useState({ autoMapped: [], needsAttention: [] });
   const [mappingsLoading, setMappingsLoading] = useState(false);
   const [mappingStatusHint, setMappingStatusHint] = useState('');
+  const [mappingDiagnostics, setMappingDiagnostics] = useState(null);
   const [mappingEdits, setMappingEdits] = useState({});
   const [mappingItemSearch, setMappingItemSearch] = useState({}); // { mappingId: searchTerm }
   const [mappingItemSearchResults, setMappingItemSearchResults] = useState({}); // { mappingId: [items] }
@@ -481,80 +504,75 @@ function App() {
 
   const loadMappings = async () => {
     setMappingsLoading(true);
-    setMappingStatusHint('Loading product mappings...');
+    setMappingStatusHint('');
+    setMappingDiagnostics(null);
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       controller.abort();
-    }, 10000);
+    }, 15000);
 
     try {
       const response = await apiFetch('/api/mappings', { signal: controller.signal });
+      const data = await response.json().catch(() => ({}));
+      const diagnostics = data?.diagnostics && typeof data.diagnostics === 'object'
+        ? data.diagnostics
+        : null;
+
       if (!response.ok) {
         setMappings({ autoMapped: [], needsAttention: [] });
-        setMappingStatusHint('Could not load product mappings yet. Please refresh.');
+        setMappingDiagnostics(diagnostics);
+        setMappingStatusHint('Could not load product mappings yet. Click Run Scan or Refresh.');
         return;
       }
 
-      const data = await response.json();
       const autoMapped = Array.isArray(data.autoMapped) ? data.autoMapped : [];
       const needsAttention = Array.isArray(data.needsAttention) ? data.needsAttention : [];
       setMappings({
         autoMapped,
         needsAttention,
       });
-
-      const debug = data?.debug || {};
+      setMappingDiagnostics(diagnostics);
       const hasNoMappings = autoMapped.length === 0 && needsAttention.length === 0;
 
-      if (hasNoMappings && debug?.emptyReason) {
-        setMappingStatusHint(mappingHintFromEmptyReason(debug.emptyReason));
+      setMappingStatusHint(
+        mappingHintFromDiagnostics(diagnostics, {
+          scanTriggered: Boolean(data.scanTriggered),
+          scanInProgress: Boolean(data.scanInProgress),
+          hasMappings: !hasNoMappings,
+        }),
+      );
 
-        if (debug.lastScanStatus && debug.lastScanMessage) {
+      if (hasNoMappings && diagnostics?.lastScanStatus && diagnostics?.lastScanMessage) {
           setMappingStatusHint((previous) => {
             const prefix = previous ? `${previous} ` : '';
-            return `${prefix}Last scan: ${debug.lastScanStatus} — ${debug.lastScanMessage}`;
+            return `${prefix}Last scan: ${diagnostics.lastScanStatus} — ${diagnostics.lastScanMessage}`;
           });
-        }
-      } else if (hasNoMappings) {
-        setMappingStatusHint('No product mappings yet. Run Scan and refresh in a few seconds.');
-      }
-
-      if (data.scanTriggered) {
-        setMappingStatusHint('Product scan started in background. Mappings should appear shortly.');
-      } else if (data.scanInProgress) {
-        setMappingStatusHint('Product scan is still running in background. Mappings should appear shortly.');
       }
     } catch (error) {
       setMappings({ autoMapped: [], needsAttention: [] });
+      setMappingDiagnostics(null);
       if (error?.name === 'AbortError') {
-        try {
-          const diagnosticsController = new AbortController();
-          const diagnosticsTimeoutId = window.setTimeout(() => diagnosticsController.abort(), 4000);
-          const diagnosticsResponse = await apiFetch('/api/mappings?diagnostics=1', {
-            signal: diagnosticsController.signal,
-          });
-          window.clearTimeout(diagnosticsTimeoutId);
-
-          if (diagnosticsResponse.ok) {
-            const diagnosticsData = await diagnosticsResponse.json();
-            const reason = String(diagnosticsData?.debug?.emptyReason || '').trim();
-            const reasonHint = mappingHintFromEmptyReason(reason);
-            setMappingStatusHint(`Timed out after 10s. ${reasonHint}`);
-          } else {
-            setMappingStatusHint('Timed out after 10s. Connection issue while loading mappings.');
-          }
-        } catch {
-          setMappingStatusHint('Timed out after 10s. Could not determine connection reason.');
-        }
+        setMappingStatusHint('Loading mappings timed out. Click Run Scan or Refresh.');
       } else {
-        setMappingStatusHint('Failed to load mappings. Try Refresh or Run Scan.');
+        setMappingStatusHint('Failed to load mappings. Click Run Scan or Refresh.');
       }
     } finally {
       window.clearTimeout(timeoutId);
       setMappingsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!mappingsLoading) return undefined;
+
+    const id = window.setTimeout(() => {
+      setMappingsLoading(false);
+      setMappingStatusHint('Loading mappings is taking too long. Click Run Scan or Refresh.');
+    }, 20000);
+
+    return () => window.clearTimeout(id);
+  }, [mappingsLoading]);
 
   useEffect(() => {
     loadPlan();
@@ -947,8 +965,11 @@ function App() {
         return;
       }
 
+      setMappingStatusHint('Mapping scan is running...');
       alert(data.message || 'Mapping scan started. Refresh in a moment to see updates.');
-      await loadMappings();
+      window.setTimeout(() => {
+        loadMappings();
+      }, 1200);
     } catch {
       alert('Mapping scan failed to start.');
     } finally {
@@ -1011,8 +1032,19 @@ function App() {
   }).length;
   const recentActivity = visibleLogs.slice(0, 4);
   const recentTableSyncs = visibleSyncs.slice(0, 5);
+  const noShopifyProducts = Boolean(mappingDiagnostics?.noShopifyProducts);
+  const mappingProductCount = Number.isFinite(Number(mappingDiagnostics?.productCount))
+    ? Number(mappingDiagnostics.productCount)
+    : null;
+  const mappingLastScanStatus = String(mappingDiagnostics?.lastScanStatus || '').trim() || 'never';
+  const mappingLastScanAt = mappingDiagnostics?.lastScanAt || null;
 
   const handleQboConnectClick = async () => {
+    if (settings.qboConnected) {
+      await loadSettings();
+      return;
+    }
+
     const fallbackShop = await getCurrentShopDomainWithTokenFallback();
     const shop = fallbackShop || String(settings.shopifyDomain || '').trim().toLowerCase();
     if (shop && shop.endsWith('.myshopify.com')) {
@@ -1255,6 +1287,7 @@ function App() {
                 <button
                   className="btn-connect"
                   onClick={handleQboConnectClick}
+                  disabled={effectiveSettings.qboConnected}
                 >
                   {effectiveSettings.qboConnected ? 'Connected' : 'Connect'}
                 </button>
@@ -1566,6 +1599,7 @@ function App() {
                             type="button"
                             className="btn-oauth"
                             onClick={handleQboConnectClick}
+                            disabled={effectiveSettings.qboConnected}
                           >
                             🔗 Connect QuickBooks Online
                           </button>
@@ -1739,6 +1773,12 @@ function App() {
                   </button>
                 </div>
                 {displayedMappingStatusHint ? <p className="form-hint" style={{ marginBottom: '10px' }}>{displayedMappingStatusHint}</p> : null}
+                {mappingDiagnostics ? (
+                  <p className="form-hint" style={{ marginBottom: '10px' }}>
+                    products={mappingProductCount ?? 'unknown'} · lastScan={mappingLastScanStatus}
+                    {mappingLastScanAt ? ` (${formatRelativeTime(mappingLastScanAt)})` : ''}
+                  </p>
+                ) : null}
                 <div className="table-container">
                   <table className="sync-table">
                     <thead>
@@ -1756,9 +1796,11 @@ function App() {
                           <td colSpan="5">
                             {mappingsLoading
                               ? 'Loading mapped items...'
-                              : (effectiveMappings.needsAttention.length === 0
-                                ? 'No products found from Shopify yet.'
-                                : 'No mapped items yet.')}
+                              : (noShopifyProducts
+                                ? 'No Shopify products found to map yet.'
+                                : (effectiveMappings.needsAttention.length === 0
+                                  ? 'No product mappings yet. Run Scan and refresh in a few seconds.'
+                                  : 'No mapped items yet.'))}
                           </td>
                         </tr>
                       ) : effectiveMappings.autoMapped.map((mapping) => (
@@ -1793,8 +1835,8 @@ function App() {
                           <td colSpan="4">
                             {mappingsLoading
                               ? 'Loading items...'
-                              : (effectiveMappings.autoMapped.length === 0
-                                ? 'No products found from Shopify yet.'
+                              : (mappingDiagnostics?.noShopifyProducts
+                                ? 'No Shopify products found to map yet.'
                                 : 'No items need attention.')}
                           </td>
                         </tr>

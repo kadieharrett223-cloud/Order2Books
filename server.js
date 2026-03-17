@@ -1503,6 +1503,26 @@ async function fetchShopifyProducts(shop, limit = 100) {
   return Array.isArray(data?.products) ? data.products : []
 }
 
+async function fetchShopifyProductCount(shop) {
+  const response = await fetch(
+    `https://${shop.shop_domain}/admin/api/${SHOPIFY_API_VERSION}/products/count.json`,
+    {
+      headers: {
+        'X-Shopify-Access-Token': shop.shopify_access_token,
+        'Content-Type': 'application/json',
+      },
+    },
+  )
+
+  if (!response.ok) {
+    const message = await response.text()
+    throw new Error(`Failed fetching Shopify product count: ${message}`)
+  }
+
+  const data = await response.json()
+  return Number(data?.count || 0)
+}
+
 function mapShopifyProductVariant(product, variant) {
   return {
     title: variant.title && variant.title !== 'Default Title' ? `${product.title} - ${variant.title}` : product.title,
@@ -2417,22 +2437,28 @@ app.get('/api/mappings', async (req, res) => {
   const diagnosticsOnly = String(req.query?.diagnostics || '').trim() === '1'
   const activeShop = await getActiveInstalledShop(req)
   if (!activeShop) {
+    const diagnostics = {
+      eligibleForScan: false,
+      hasShopifyToken: false,
+      hasQboRealm: false,
+      hasQboToken: false,
+      emptyReason: 'missing_shop_context',
+      mappingCount: 0,
+      productCount: null,
+      noShopifyProducts: false,
+      productCountError: '',
+      lastScanStatus: '',
+      lastScanMessage: '',
+      lastScanAt: null,
+    }
+
     return res.json({
       autoMapped: [],
       needsAttention: [],
       scanTriggered: false,
       scanInProgress: false,
-      debug: {
-        eligibleForScan: false,
-        hasShopifyToken: false,
-        hasQboRealm: false,
-        hasQboToken: false,
-        emptyReason: 'missing_shop_context',
-        mappingCount: 0,
-        lastScanStatus: '',
-        lastScanMessage: '',
-        lastScanAt: null,
-      },
+      diagnostics,
+      debug: diagnostics,
     })
   }
 
@@ -2457,6 +2483,18 @@ app.get('/api/mappings', async (req, res) => {
   const hasQboToken = Boolean(activeShop.qbo_access_token || activeShop.qbo_refresh_token)
   const eligibleForScan = Boolean(hasShopifyToken && hasQboRealm && hasQboToken)
 
+  let productCount = null
+  let productCountError = ''
+  if (hasShopifyToken && mappings.length === 0) {
+    try {
+      productCount = await fetchShopifyProductCount(activeShop)
+    } catch (error) {
+      productCountError = String(error?.message || error || '').trim()
+    }
+  }
+
+  const noShopifyProducts = Number.isFinite(productCount) && productCount === 0
+
   const lastScanLog = await db.get(
     `SELECT status, message, created_at
      FROM sync_logs
@@ -2478,8 +2516,12 @@ app.get('/api/mappings', async (req, res) => {
       emptyReason = 'scan_in_progress'
     } else if (scanTriggered) {
       emptyReason = 'scan_started'
-    } else {
+    } else if (productCountError) {
+      emptyReason = 'product_count_error'
+    } else if (noShopifyProducts) {
       emptyReason = 'no_products_found'
+    } else {
+      emptyReason = 'no_mappings_found'
     }
   }
 
@@ -2494,22 +2536,28 @@ app.get('/api/mappings', async (req, res) => {
     updatedAt: mapping.updated_at,
   }))
 
+  const diagnostics = {
+    eligibleForScan,
+    hasShopifyToken,
+    hasQboRealm,
+    hasQboToken,
+    emptyReason,
+    mappingCount: mappings.length,
+    productCount,
+    noShopifyProducts,
+    productCountError,
+    lastScanStatus: String(lastScanLog?.status || ''),
+    lastScanMessage: String(lastScanLog?.message || ''),
+    lastScanAt: lastScanLog?.created_at || null,
+  }
+
   return res.json({
     autoMapped: formatted.filter((mapping) => mapping.status === 'mapped'),
     needsAttention: formatted.filter((mapping) => mapping.status !== 'mapped'),
     scanTriggered,
     scanInProgress,
-    debug: {
-      eligibleForScan,
-      hasShopifyToken,
-      hasQboRealm,
-      hasQboToken,
-      emptyReason,
-      mappingCount: mappings.length,
-      lastScanStatus: String(lastScanLog?.status || ''),
-      lastScanMessage: String(lastScanLog?.message || ''),
-      lastScanAt: lastScanLog?.created_at || null,
-    },
+    diagnostics,
+    debug: diagnostics,
   })
 })
 
@@ -2519,7 +2567,7 @@ app.post('/api/mappings/scan', async (req, res) => {
     return res.status(401).json({ error: 'Shopify session required.' })
   }
 
-  if (!activeShop?.qbo_access_token || !activeShop?.qbo_realm_id) {
+  if (!activeShop?.shopify_access_token || !activeShop?.qbo_realm_id || (!activeShop?.qbo_access_token && !activeShop?.qbo_refresh_token)) {
     return res.status(400).json({ error: 'QuickBooks must be connected before running a mapping scan.' })
   }
 
@@ -2661,38 +2709,51 @@ app.get('/api/settings', async (req, res) => {
   const db = await getDb()
   const settings = await db.get('SELECT * FROM app_settings WHERE id = 1')
   const requestedShopDomain = resolveShopDomainFromRequest(req)
-  const fallbackShopDomain = validateShopDomain(requestedShopDomain)
-    ? requestedShopDomain
-    : String(settings?.shopify_domain || '').toLowerCase().trim()
-  const resolvedShopDomain = activeShop?.shop_domain || (validateShopDomain(fallbackShopDomain) ? fallbackShopDomain : '')
-  
-  // Try to find shop: first with is_installed=1, then without (fallback for more resilience)
-  let resolvedShop = activeShop
-  if (!resolvedShop && validateShopDomain(resolvedShopDomain)) {
+  const fallbackShopDomain = String(settings?.shopify_domain || '').toLowerCase().trim()
+  const candidateShopDomains = [requestedShopDomain, fallbackShopDomain, activeShop?.shop_domain]
+    .map((value) => String(value || '').toLowerCase().trim())
+    .filter((value, index, list) => validateShopDomain(value) && list.indexOf(value) === index)
+
+  let resolvedShop = null
+  for (const shopDomain of candidateShopDomains) {
     resolvedShop = await db.get(
       `SELECT *
        FROM shops
        WHERE shop_domain = ? AND is_installed = 1
       ORDER BY updated_at DESC
        LIMIT 1`,
-      [resolvedShopDomain],
+      [shopDomain],
     )
-  }
-  if (!resolvedShop && validateShopDomain(resolvedShopDomain)) {
-    // Fallback: treat any shop record as installed if it has shopify_access_token
-    resolvedShop = await db.get(
-      `SELECT *
-       FROM shops
-       WHERE shop_domain = ?
-      ORDER BY updated_at DESC
-       LIMIT 1`,
-      [resolvedShopDomain],
-    )
-    if (resolvedShop && !resolvedShop.shopify_access_token) {
-      resolvedShop = null
+    if (resolvedShop) {
+      break
     }
   }
-  
+
+  if (!resolvedShop) {
+    for (const shopDomain of candidateShopDomains) {
+      const fallbackShop = await db.get(
+        `SELECT *
+         FROM shops
+         WHERE shop_domain = ?
+        ORDER BY updated_at DESC
+         LIMIT 1`,
+        [shopDomain],
+      )
+      if (fallbackShop?.shopify_access_token) {
+        resolvedShop = fallbackShop
+        break
+      }
+    }
+  }
+
+  if (!resolvedShop && activeShop?.shopify_access_token) {
+    resolvedShop = activeShop
+  }
+
+  const resolvedShopDomain = String(
+    resolvedShop?.shop_domain || candidateShopDomains[0] || '',
+  ).toLowerCase().trim()
+
   const connectionStateAuthoritative = Boolean(resolvedShop?.is_installed || (resolvedShop?.shopify_access_token && resolvedShop?.shop_domain))
   const hasStoredQboConnection = Boolean(
     (resolvedShop?.qbo_refresh_token || resolvedShop?.qbo_access_token) && resolvedShop?.qbo_realm_id,
