@@ -797,8 +797,8 @@ function App() {
       const manuallyDisconnectedQbo = hasManualQboDisconnect();
       const apiSettings = data.settings || {};
       const apiShop = String(data.shop || apiSettings.shopifyDomain || '').trim().toLowerCase();
-      const apiShopifyConnected = Boolean(data.shopify_connected || apiSettings.shopifyConnected);
-      const apiQboConnected = Boolean(data.quickbooks_connected || apiSettings.qboConnected);
+      const apiShopifyConnected = Boolean(data.shopify_connected);
+      const apiQboConnected = Boolean(data.quickbooks_connected);
       const previousShopifyConnected = Boolean(settings?.shopifyConnected);
       const previousQboConnected = Boolean(settings?.qboConnected);
       const cachedShopifyConnected = Boolean(cached?.shopifyConnected);
@@ -813,13 +813,15 @@ function App() {
         nextSettings.shopifyDomain = apiShop;
       }
 
-      const resolvedQboConnected = Boolean(apiQboConnected);
+      const resolvedQboConnected = hasAuthoritativeConnectionState
+        ? apiQboConnected
+        : Boolean(apiQboConnected || previousQboConnected || cachedQboConnected || apiSettings.qboConnected);
 
       const resolvedShopifyConnected = resolvedQboConnected
         ? true
         : hasAuthoritativeConnectionState
-          ? Boolean(apiShopifyConnected)
-          : Boolean(apiShopifyConnected || previousShopifyConnected || cachedShopifyConnected);
+          ? apiShopifyConnected
+          : Boolean(apiShopifyConnected || previousShopifyConnected || cachedShopifyConnected || apiSettings.shopifyConnected);
 
       nextSettings.qboConnected = resolvedQboConnected;
       nextSettings.shopifyConnected = resolvedShopifyConnected;
