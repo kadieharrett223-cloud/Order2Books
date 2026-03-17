@@ -1079,12 +1079,6 @@ function App() {
       }));
       setMappingStatusHint('QuickBooks disconnected. You can now connect a different Intuit account.');
 
-      // Re-fetch settings from the server to confirm the UI reflects the cleared state.
-      // This avoids any redirect/iframe-navigation issues in the Shopify admin embed.
-      window.setTimeout(() => {
-        loadSettings();
-      }, 300);
-
       return true;
     } catch (error) {
       if (error?.name === 'AbortError') {
